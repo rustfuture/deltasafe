@@ -19,6 +19,10 @@ pub enum Commands {
         /// Hedef IP adresi
         #[arg(short, long)]
         target: String,
+
+        /// AES anahtarı (hex formatında 32 bayt)
+        #[arg(short, long)]
+        key: String,
     },
 
     /// Peer cihazla bağlantı kur
@@ -40,5 +44,9 @@ pub enum Commands {
         /// Sunucu adresi (IP ve port)
         #[arg(short, long)]
         address: String,
+
+        /// AES anahtarı (hex formatında 32 bayt)
+        #[arg(short, long)]
+        key: String,
     },
 }
