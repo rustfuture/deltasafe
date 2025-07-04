@@ -150,18 +150,13 @@ cargo test test_file_hash_calculation
 cargo test -- --nocapture
 ```
 
-## 📊 Performans ve Güvenlik
+## 📊 Teknik Özellikler
 
-### Güvenlik Özellikleri:
-- **AES-256-CBC**: Endüstri standardı şifreleme
-- **Rastgele IV**: Her chunk için benzersiz initialization vector
-- **BLAKE3 Hash**: Hızlı ve güvenli dosya bütünlük kontrolü
-- **32-byte Anahtar**: 256-bit güvenlik seviyesi
-
-### Performans:
-- **4KB Chunk Size**: Optimal bellek kullanımı ve transfer hızı
-- **Progress Tracking**: Gerçek zamanlı transfer ilerlemesi
-- **Paralel Bağlantı**: Sunucu birden fazla istemciyi destekler
+- **AES-256-CBC şifreleme** ile maksimum güvenlik
+- **PBKDF2 anahtar türetme** ile basit şifre desteği  
+- **BLAKE3 hash doğrulaması** ile dosya bütünlüğü
+- **4KB chunk transfer** ile optimal performans
+- **Async/await** ile modern Rust mimarisi
 
 ## 🎯 Kullanım Senaryoları
 
@@ -195,22 +190,6 @@ deltasafe server --address 0.0.0.0:12345 --password "CompanySecret2024"
 deltasafe sync --source ./shared_files --target server.company.local:12345 --password "CompanySecret2024"
 ```
 
-## 🚧 Bilinen Sınırlamalar ve Gelecek Geliştirmeler
-
-### ✅ Düzeltilen Sorunlar:
-*   **✅ Dosya Adı Yönetimi:** Sunucu artık dosyaları doğru isim ve dizin yapısıyla kaydediyor
-*   **✅ Hata Yönetimi:** Kapsamlı hata yönetimi ve anyhow kullanımı eklendi
-*   **✅ Progress Tracking:** Transfer ilerlemesi gösterimi eklendi
-*   **✅ Basit Şifre Sistemi:** PBKDF2 ile password-based encryption
-*   **✅ Otomatik Keşif:** LAN tarama ve sunucu bulma
-*   **✅ Akıllı Varsayılanlar:** Otomatik IP/port detection
-
-### 🔄 Devam Eden Geliştirmeler:
-*   **`Connect` ve `Watch` Komutları:** Henüz implement edilmemiş
-*   **Resume Capability:** Kesintiye uğrayan transferlerin devam ettirilmesi
-*   **Compression:** Dosya sıkıştırma desteği
-*   **GUI Arayüz:** Web-based veya native GUI
-*   **QR Code:** Kolay anahtar paylaşımı
 
 ## 🤝 Katkıda Bulunma
 
