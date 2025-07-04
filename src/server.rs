@@ -74,9 +74,15 @@ fn handle_client(mut stream: TcpStream, key: &[u8; 32]) {
     println!("[📄] Alınan dosya başlığı: {:?}", header);
 
     // Hedef yolu oluştur ve dizinleri oluştur
-    let full_path = Path::new("received_files").join(&header.relative_path);
+    let received_dir = Path::new("received_files");
+    fs::create_dir_all(received_dir).expect("Ana dizin oluşturulamadı");
+    
+    let full_path = received_dir.join(&header.relative_path);
     if let Some(parent) = full_path.parent() {
-        fs::create_dir_all(parent).expect("Dizinler oluşturulamadı");
+        if let Err(e) = fs::create_dir_all(parent) {
+            println!("[⚠️] Dizin oluşturulamadı: {}", e);
+            return;
+        }
     }
 
     // 4. İstemciye onay gönder
@@ -86,11 +92,17 @@ fn handle_client(mut stream: TcpStream, key: &[u8; 32]) {
     }
 
     let path = &full_path;
-    let mut file = OpenOptions::new()
+    let mut file = match OpenOptions::new()
         .create(true)
         .write(true)
-        .open(path)
-        .expect("Dosya oluşturulamadı");
+        .truncate(true)  // Mevcut dosyayı temizle
+        .open(path) {
+        Ok(f) => f,
+        Err(e) => {
+            println!("[⚠️] Dosya oluşturulamadı: {}", e);
+            return;
+        }
+    };
 
     let mut total_bytes_read = 0;
     let mut buffer = [0; 4096]; // 4KB chunk

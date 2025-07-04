@@ -2,15 +2,33 @@
 
 ## Genel Bakış
 
-**Deltasafe**, yerel ağ (LAN) üzerinde dosyaları güvenli ve verimli bir şekilde senkronize etmek için tasarlanmış, Rust ile geliştirilmiş bir komut satırı aracıdır. Özellikle hassas verilerin güvenli bir şekilde aktarılması gerektiği durumlarda, AES-256 şifrelemesi kullanarak verilerinizin gizliliğini ve bütünlüğünü sağlar.
+**Deltasafe**, yerel ağ (LAN) üzerinde dosyaları güvenli ve **kullanıcı dostu** bir şekilde senkronize etmek için tasarlanmış, Rust ile geliştirilmiş modern bir komut satırı aracıdır. 
+
+🎯 **Artık karmaşık hex anahtarlar yok!** Basit şifreler kullanın: `--password "MyPassword123"`  
+🔍 **Otomatik sunucu keşfi!** Manuel IP girmeye gerek yok: `--auto`  
+🤖 **Akıllı varsayılanlar!** Minimal parametre ile çalışır: `deltasafe server`
+
+AES-256 şifrelemesi ile verilerinizin gizliliğini ve bütünlüğünü sağlarken, kullanım kolaylığından ödün vermez.
 
 ## ✨ Özellikler
 
-*   **AES-256 Şifreleme:** Tüm dosya parçaları, endüstri standardı AES-256 algoritması ile şifrelenerek aktarılır.
-*   **Parça Tabanlı Senkronizasyon:** Büyük dosyalar küçük parçalara bölünerek daha verimli ve hataya dayanıklı bir aktarım sağlanır.
-*   **BLAKE3 Hash Doğrulaması:** Her dosya parçasının bütünlüğü BLAKE3 hash algoritması ile doğrulanır.
-*   **TCP/IP Üzerinden Güvenli Aktarım:** Veriler, güvenilir TCP/IP protokolü üzerinden aktarılır.
-*   **Basit CLI Arayüzü:** Kolay kullanımlı komut satırı arayüzü ile sunucu ve istemci işlemleri yönetilir.
+### 🔒 Güvenlik
+*   **AES-256-CBC Şifreleme:** Endüstri standardı şifreleme ile maksimum güvenlik
+*   **PBKDF2 Anahtar Türetme:** Basit şifrelerden güvenli anahtarlar üretir
+*   **BLAKE3 Hash Doğrulaması:** Dosya bütünlüğü garantisi
+*   **Rastgele IV:** Her chunk için benzersiz initialization vector
+
+### 🚀 Kullanıcı Dostu
+*   **Basit Şifre Sistemi:** Karmaşık hex anahtarlar yerine "MyPassword123" 
+*   **Otomatik Sunucu Keşfi:** LAN'da sunucuları otomatik bulur
+*   **Akıllı Varsayılanlar:** Minimal parametre ile çalışır
+*   **Progress Tracking:** Gerçek zamanlı transfer ilerlemesi
+
+### ⚡ Performans
+*   **Chunk-based Transfer:** 4KB parçalar ile optimal aktarım
+*   **Paralel Bağlantı:** Sunucu birden fazla istemciyi destekler
+*   **Async/Await:** Modern Rust async programlama
+*   **Dizin Yapısı Korunur:** Klasör hiyerarşisi aynen aktarılır
 
 ## 🛠️ Kurulum
 
@@ -40,48 +58,159 @@ Deltasafe'i kullanabilmek için sisteminizde [Rust](https://www.rust-lang.org/to
 
 ## 🚀 Kullanım
 
-Deltasafe, sunucu ve istemci modları ile çalışır. Her iki tarafın da aynı AES anahtarını kullanması gerekmektedir. Anahtar, 32 bayt uzunluğunda (64 karakterlik hex string) olmalıdır.
+Deltasafe artık **kullanıcı dostu** hale geldi! Karmaşık hex anahtarlar yerine basit şifreler kullanabilir, sunucuları otomatik keşfedebilirsiniz.
 
-### 🔑 AES Anahtarı Oluşturma
+### 🔑 Şifreleme Seçenekleri
 
-Güvenli bir AES anahtarı oluşturmak için aşağıdaki Python kodunu kullanabilirsiniz:
-
-```python
-import os
-import binascii
-
-key = os.urandom(32) # 32 bayt rastgele anahtar
-hex_key = binascii.hexlify(key).decode('utf-8')
-print(hex_key)
+**Seçenek 1: Basit Şifre (Önerilen)**
+```bash
+--password "MySecretPassword123"
 ```
-Bu kod size 64 karakterlik bir hex string verecektir. Bu anahtarı hem sunucu hem de istemci için kullanın.
 
-### Sunucu Modu
+**Seçenek 2: Manuel Hex Anahtar (İleri Seviye)**
+```bash
+--key 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+```
 
-Belirtilen IP ve port üzerinde gelen bağlantıları dinler ve şifrelenmiş dosyaları alır.
+**Seçenek 3: Otomatik Geçici Anahtar**
+```bash
+# Hiç parametre vermezseniz otomatik anahtar üretilir
+deltasafe server  # Geçici anahtar gösterilir
+```
+
+### 🔍 Sunucu Keşfi (Yeni!)
+
+LAN'daki mevcut Deltasafe sunucularını otomatik olarak keşfedin:
 
 ```bash
-./target/release/deltasafe server --address 0.0.0.0:12345 --key <64-karakterli-hex-anahtarınız>
+./target/release/deltasafe discover
 ```
-*   `--address`: Sunucunun dinleyeceği IP adresi ve port (örn: `0.0.0.0:12345`).
-*   `--key`: Kullanılacak 32 baytlık AES anahtarının 64 karakterlik hex string temsili.
 
-### İstemci Modu
+### 🖥️ Sunucu Modu
 
-Belirtilen kaynak klasördeki dosyaları şifreler ve hedef sunucuya gönderir.
+**Basit Kullanım (Önerilen):**
+```bash
+./target/release/deltasafe server --password "MyPassword123"
+```
+
+**Gelişmiş Kullanım:**
+```bash
+./target/release/deltasafe server --address 0.0.0.0:12345 --password "MyPassword123"
+```
+
+**Otomatik Mod:**
+```bash
+./target/release/deltasafe server
+# Otomatik IP, port ve geçici anahtar üretir
+```
+
+### 📤 İstemci Modu (Sync)
+
+**Otomatik Sunucu Keşfi (Önerilen):**
+```bash
+# Kullanıcı seçimi ile (birden fazla sunucu varsa)
+./target/release/deltasafe sync --source ./my_folder --auto --password "MyPassword123"
+
+# Otomatik seçim (kullanıcı etkileşimi olmadan)
+./target/release/deltasafe sync --source ./my_folder --auto --auto-select --password "MyPassword123"
+```
+
+**Manuel Hedef Belirleme:**
+```bash
+./target/release/deltasafe sync --source ./my_folder --target 192.168.1.100:12345 --password "MyPassword123"
+```
+
+**Hex Anahtar ile (İleri Seviye):**
+```bash
+./target/release/deltasafe sync --source ./my_folder --target 192.168.1.100:12345 --key 0123456789abcdef...
+```
+
+### 📋 Parametre Açıklamaları
+
+*   `--source`: Senkronize edilecek kaynak klasör
+*   `--target`: Hedef sunucu IP:port (opsiyonel, --auto ile otomatik)
+*   `--auto`: Otomatik sunucu keşfi
+*   `--auto-select`: Birden fazla sunucu varsa otomatik seç (etkileşim olmadan)
+*   `--password`: Basit şifre (önerilen)
+*   `--key`: 64 karakterlik hex anahtar (ileri seviye)
+*   `--address`: Sunucu adresi (opsiyonel, otomatik tespit)
+
+## 🧪 Test Etme
+
+Projeyi test etmek için:
 
 ```bash
-./target/release/deltasafe sync --source /path/to/your/folder --target 192.168.1.100:12345 --key <64-karakterli-hex-anahtarınız>
+# Unit testleri çalıştır
+cargo test
+
+# Belirli bir test çalıştır
+cargo test test_file_hash_calculation
+
+# Test çıktısını detaylı göster
+cargo test -- --nocapture
 ```
-*   `--source`: Senkronize edilecek kaynak klasörün yolu (örn: `./my_documents`).
-*   `--target`: Hedef sunucunun IP adresi ve portu (örn: `192.168.1.100:12345`).
-*   `--key`: Kullanılacak 32 baytlık AES anahtarının 64 karakterlik hex string temsili.
+
+## 📊 Performans ve Güvenlik
+
+### Güvenlik Özellikleri:
+- **AES-256-CBC**: Endüstri standardı şifreleme
+- **Rastgele IV**: Her chunk için benzersiz initialization vector
+- **BLAKE3 Hash**: Hızlı ve güvenli dosya bütünlük kontrolü
+- **32-byte Anahtar**: 256-bit güvenlik seviyesi
+
+### Performans:
+- **4KB Chunk Size**: Optimal bellek kullanımı ve transfer hızı
+- **Progress Tracking**: Gerçek zamanlı transfer ilerlemesi
+- **Paralel Bağlantı**: Sunucu birden fazla istemciyi destekler
+
+## 🎯 Kullanım Senaryoları
+
+### 👥 **Yeni Başlayan Kullanıcı**
+```bash
+# Terminal 1: Sunucu başlat
+deltasafe server --password "basit123"
+
+# Terminal 2: Dosya gönder (kullanıcı seçimi ile)
+deltasafe sync --source ./documents --auto --password "basit123"
+
+# Veya otomatik seçim (etkileşim olmadan)
+deltasafe sync --source ./documents --auto --auto-select --password "basit123"
+```
+
+### 🔧 **İleri Seviye Kullanıcı**
+```bash
+# Önce keşif yap
+deltasafe discover --timeout 10
+
+# Manuel hedef ile gönder
+deltasafe sync --source ./folder --target 192.168.1.50:12345 --key 0123...cdef
+```
+
+### 🏢 **Kurumsal Kullanım**
+```bash
+# Sabit sunucu adresi
+deltasafe server --address 0.0.0.0:12345 --password "CompanySecret2024"
+
+# Toplu dosya transferi
+deltasafe sync --source ./shared_files --target server.company.local:12345 --password "CompanySecret2024"
+```
 
 ## 🚧 Bilinen Sınırlamalar ve Gelecek Geliştirmeler
 
-*   **Sunucu Tarafında Dosya Adı Yönetimi:** Şu anda sunucu, gelen tüm dosyaları `received_file` adıyla kaydetmektedir. Bu, birden fazla dosya senkronize edildiğinde veya aynı dosya tekrar gönderildiğinde eski dosyaların üzerine yazılmasına neden olur. Gelecekte bu durumun iyileştirilmesi planlanmaktadır.
-*   **Hata Yönetimi:** Uygulama içinde daha sağlam hata yönetimi mekanizmalarının eklenmesi gerekmektedir.
-*   **`Connect` ve `Watch` Komutları:** `cli.rs`'de tanımlı olan `connect` ve `watch` komutları henüz işlevsel değildir.
+### ✅ Düzeltilen Sorunlar:
+*   **✅ Dosya Adı Yönetimi:** Sunucu artık dosyaları doğru isim ve dizin yapısıyla kaydediyor
+*   **✅ Hata Yönetimi:** Kapsamlı hata yönetimi ve anyhow kullanımı eklendi
+*   **✅ Progress Tracking:** Transfer ilerlemesi gösterimi eklendi
+*   **✅ Basit Şifre Sistemi:** PBKDF2 ile password-based encryption
+*   **✅ Otomatik Keşif:** LAN tarama ve sunucu bulma
+*   **✅ Akıllı Varsayılanlar:** Otomatik IP/port detection
+
+### 🔄 Devam Eden Geliştirmeler:
+*   **`Connect` ve `Watch` Komutları:** Henüz implement edilmemiş
+*   **Resume Capability:** Kesintiye uğrayan transferlerin devam ettirilmesi
+*   **Compression:** Dosya sıkıştırma desteği
+*   **GUI Arayüz:** Web-based veya native GUI
+*   **QR Code:** Kolay anahtar paylaşımı
 
 ## 🤝 Katkıda Bulunma
 
