@@ -4,11 +4,12 @@
 //! mDNS (Bonjour/Zeroconf) ve basit port tarama yöntemlerini kullanır.
 
 use anyhow::{Result, Context};
-use std::net::{IpAddr, Ipv4Addr, SocketAddr, TcpStream};
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::time::Duration;
 use std::collections::HashMap;
 
 /// Deltasafe servisi için mDNS service type
+#[allow(dead_code)] // mDNS implementasyonu henüz tamamlanmadığı için şimdilik izin veriliyor
 const DELTASAFE_SERVICE_TYPE: &str = "_deltasafe._tcp.local.";
 
 /// Varsayılan port aralığı tarama için
@@ -23,6 +24,7 @@ pub struct DiscoveredServer {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // mDNS implementasyonu henüz tamamlanmadığı için şimdilik izin veriliyor
 pub enum DiscoveryMethod {
     MDns,
     PortScan,
@@ -72,7 +74,7 @@ pub async fn discover_servers(timeout_secs: u64) -> Result<Vec<DiscoveredServer>
 }
 
 /// mDNS kullanarak sunucu keşfi
-async fn discover_via_mdns(timeout_secs: u64) -> Result<Vec<DiscoveredServer>> {
+async fn discover_via_mdns(_timeout_secs: u64) -> Result<Vec<DiscoveredServer>> {
     // mDNS şimdilik basit implementasyon - gerçek mDNS karmaşık
     println!("[📡] mDNS keşfi deneniyor... (basit implementasyon)");
     
