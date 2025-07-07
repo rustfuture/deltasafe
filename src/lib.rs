@@ -31,6 +31,7 @@ pub mod sync;
 pub mod server;
 pub mod crypto;
 pub mod discovery;
+pub mod utils;
 
 pub use cli::{Cli, Commands};
 pub use sync::{start_sync, calculate_file_hash, FileHeader, CHUNK_SIZE};
