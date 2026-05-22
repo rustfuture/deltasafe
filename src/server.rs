@@ -1,154 +1,193 @@
 use std::fs::{self, OpenOptions};
-use std::io::{Write, Read, BufReader};
-use std::path::{Path, PathBuf};
+use std::io::{Write, Read};
+use std::path::Path;
 use std::net::{TcpListener, TcpStream};
 use aes::Aes256;
 use cipher::{block_padding::Pkcs7, BlockDecryptMut, KeyIvInit};
-use serde::{Serialize, Deserialize};
-use serde_json;
-use blake3;
+use anyhow::{Result, Context, anyhow};
 
-// Yeni tip tanımı: CBC ile AES256
-// Aes256Cbc = Cbc<Aes256, Pkcs7>
+use crate::sync::{FileHeader, calculate_file_hash};
+use crate::crypto::derive_key_from_password;
+
 type Aes256CbcDec = cbc::Decryptor<Aes256>;
 
-#[derive(Serialize, Deserialize, Debug)]
-struct FileHeader {
-    file_name: String,
-    file_size: u64,
-    file_hash: String,
-    relative_path: PathBuf,
+fn read_exact_or_eof(stream: &mut TcpStream, buf: &mut [u8]) -> Result<bool> {
+    match stream.read_exact(buf) {
+        Ok(()) => Ok(true),
+        Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => Ok(false),
+        Err(e) => Err(e.into()),
+    }
 }
 
-fn decrypt_chunk(ciphertext: &[u8], key: &[u8; 32], iv: &[u8]) -> Vec<u8> {
+fn read_file_header(stream: &mut TcpStream) -> Result<Option<FileHeader>> {
+    let mut header_len_bytes = [0u8; 4];
+    if !read_exact_or_eof(stream, &mut header_len_bytes)? {
+        return Ok(None);
+    }
+
+    let header_len = u32::from_be_bytes(header_len_bytes) as usize;
+    let mut header_buffer = vec![0u8; header_len];
+    stream.read_exact(&mut header_buffer)
+        .context("Başlık okunamadı")?;
+
+    let header: FileHeader = serde_json::from_slice(&header_buffer)
+        .context("Başlık deserialize edilemedi")?;
+
+    Ok(Some(header))
+}
+
+fn resolve_transfer_key(
+    header: &FileHeader,
+    default_key: &[u8; 32],
+    password: Option<&str>,
+) -> Result<[u8; 32]> {
+    match (&header.pbkdf2_salt, password) {
+        (Some(salt_hex), Some(pwd)) => {
+            let salt = hex::decode(salt_hex)
+                .context("Geçersiz PBKDF2 salt formatı")?;
+            let salt: [u8; 16] = salt.try_into()
+                .map_err(|_| anyhow!("PBKDF2 salt 16 bayt olmalıdır"))?;
+            derive_key_from_password(pwd, Some(&salt))
+        },
+        (Some(_), None) => {
+            anyhow::bail!("İstemci oturum salt gönderdi ancak sunucu şifre modunda başlatılmadı")
+        },
+        (None, _) => Ok(*default_key),
+    }
+}
+
+fn decrypt_chunk(ciphertext: &[u8], key: &[u8; 32], iv: &[u8]) -> Result<Vec<u8>> {
     let mut buf = ciphertext.to_vec();
     let cipher = Aes256CbcDec::new(key.into(), iv.into());
-    let decrypted = cipher.decrypt_padded_mut::<Pkcs7>(&mut buf).unwrap();
-    decrypted.to_vec()
+    let decrypted = cipher.decrypt_padded_mut::<Pkcs7>(&mut buf)
+        .map_err(|_| anyhow!("Chunk çözülemedi"))?;
+    Ok(decrypted.to_vec())
 }
 
-/// Bir dosyanın tamamının BLAKE3 hash'ini hesaplar.
-fn calculate_file_hash(path: &Path) -> Result<String, std::io::Error> {
-    let file = fs::File::open(path)?;
-    let mut reader = BufReader::new(file);
-    let mut hasher = blake3::Hasher::new();
-    let mut buffer = [0; 4096];
-
-    loop {
-        let bytes_read = reader.read(&mut buffer)?;
-        if bytes_read == 0 {
-            break;
-        }
-        hasher.update(&buffer[..bytes_read]);
+fn read_framed_payload(stream: &mut TcpStream, buffer: &mut Vec<u8>) -> Result<Option<()>> {
+    let mut len_bytes = [0u8; 4];
+    if !read_exact_or_eof(stream, &mut len_bytes)? {
+        return Ok(None);
     }
-    Ok(hasher.finalize().to_hex().to_string())
+
+    let payload_len = u32::from_be_bytes(len_bytes) as usize;
+    if payload_len < 16 {
+        anyhow::bail!("Geçersiz chunk boyutu: {}", payload_len);
+    }
+
+    buffer.resize(payload_len, 0);
+    stream.read_exact(buffer)
+        .context("Chunk okunamadı")?;
+
+    Ok(Some(()))
 }
 
-fn handle_client(mut stream: TcpStream, key: &[u8; 32]) {
-    println!("[📥] Bağlantı alındı.");
-
-    // 1. Başlık uzunluğunu oku (4 bayt)
-    let mut header_len_bytes = [0; 4];
-    if stream.read_exact(&mut header_len_bytes).is_err() {
-        println!("[⚠️] Başlık uzunluğu okunamadı.");
-        return;
-    }
-    let header_len = u32::from_be_bytes(header_len_bytes) as usize;
-
-    // 2. Başlığı oku
-    let mut header_buffer = vec![0; header_len];
-    if stream.read_exact(&mut header_buffer).is_err() {
-        println!("[⚠️] Başlık okunamadı.");
-        return;
-    }
-
-    // 3. Başlığı deserialize et
-    let header: FileHeader = match serde_json::from_slice(&header_buffer) {
-        Ok(h) => h,
-        Err(e) => {
-            println!("[⚠️] Başlık deserialize edilemedi: {}", e);
-            return;
-        }
-    };
-
-    println!("[📄] Alınan dosya başlığı: {:?}", header);
-
-    // Hedef yolu oluştur ve dizinleri oluştur
+fn receive_file(stream: &mut TcpStream, header: &FileHeader, key: &[u8; 32]) -> Result<()> {
     let received_dir = Path::new("received_files");
-    fs::create_dir_all(received_dir).expect("Ana dizin oluşturulamadı");
-    
+    fs::create_dir_all(received_dir).context("Ana dizin oluşturulamadı")?;
+
     let full_path = received_dir.join(&header.relative_path);
     if let Some(parent) = full_path.parent() {
-        if let Err(e) = fs::create_dir_all(parent) {
-            println!("[⚠️] Dizin oluşturulamadı: {}", e);
-            return;
-        }
+        fs::create_dir_all(parent).context("Dizin oluşturulamadı")?;
     }
 
-    // 4. İstemciye onay gönder
-    if stream.write_all(&[1]).is_err() {
-        println!("[⚠️] İstemciye onay gönderilemedi.");
-        return;
-    }
-
-    let path = &full_path;
-    let mut file = match OpenOptions::new()
+    let mut file = OpenOptions::new()
         .create(true)
         .write(true)
-        .truncate(true)  // Mevcut dosyayı temizle
-        .open(path) {
-        Ok(f) => f,
-        Err(e) => {
-            println!("[⚠️] Dosya oluşturulamadı: {}", e);
-            return;
+        .truncate(true)
+        .open(&full_path)
+        .context("Dosya oluşturulamadı")?;
+
+    let mut total_bytes_written = 0u64;
+    let mut payload_buffer = Vec::new();
+
+    while total_bytes_written < header.file_size {
+        if read_framed_payload(stream, &mut payload_buffer)?.is_none() {
+            anyhow::bail!(
+                "Bağlantı erken kapandı: {} ({} / {} bayt alındı)",
+                header.file_name,
+                total_bytes_written,
+                header.file_size
+            );
         }
-    };
 
-    let mut total_bytes_read = 0;
-    let mut buffer = [0; 4096]; // 4KB chunk
+        let iv = &payload_buffer[..16];
+        let ciphertext = &payload_buffer[16..];
+        let decrypted = decrypt_chunk(ciphertext, key, iv)
+            .context("Chunk çözülemedi")?;
 
-    while total_bytes_read < header.file_size {
-        let bytes_to_read = std::cmp::min(buffer.len(), (header.file_size - total_bytes_read) as usize);
-        let bytes_read = match stream.read_exact(&mut buffer[..bytes_to_read]) {
-            Ok(_) => bytes_to_read,
-            Err(e) => {
-                println!("[⚠️] Chunk okuma hatası: {}", e);
-                break;
-            }
-        };
-
-        // IV ve şifreli veri ayrıştırılıyor
-        if bytes_read > 16 {
-            let iv = &buffer[..16];
-            let ciphertext = &buffer[16..bytes_read];
-            let decrypted = decrypt_chunk(ciphertext, key, iv);
-            file.write_all(&decrypted).expect("Veri dosyaya yazılamadı");
-            println!("[📦] Alınan ve çözülen chunk: {} bayt", decrypted.len());
-            total_bytes_read += decrypted.len() as u64;
-        } else {
-            println!("[⚠️] Chunk boyutu çok küçük, IV ve veri ayrıştırılamadı.");
-            break;
-        }
+        file.write_all(&decrypted)
+            .context("Veri dosyaya yazılamadı")?;
+        total_bytes_written += decrypted.len() as u64;
     }
 
-    println!("[📂] Dosya '{}' başarıyla alındı ve kaydedildi. Toplam {} bayt.", header.file_name, total_bytes_read);
+    println!(
+        "[📂] Dosya '{}' başarıyla alındı. Toplam {} bayt.",
+        header.file_name, total_bytes_written
+    );
 
-    // Dosya hash'ini doğrula
-    match calculate_file_hash(path) {
+    match calculate_file_hash(&full_path) {
         Ok(calculated_hash) => {
             if calculated_hash == header.file_hash {
                 println!("[✅] Dosya hash doğrulaması başarılı: {}", calculated_hash);
             } else {
-                println!("[❌] Dosya hash doğrulaması BAŞARISIZ! Beklenen: {}, Hesaplanan: {}", header.file_hash, calculated_hash);
+                println!(
+                    "[❌] Dosya hash doğrulaması BAŞARISIZ! Beklenen: {}, Hesaplanan: {}",
+                    header.file_hash, calculated_hash
+                );
             }
         }
         Err(e) => {
             println!("[⚠️] Kaydedilen dosyanın hash'i hesaplanamadı: {}", e);
         }
     }
+
+    Ok(())
 }
 
-pub fn start_server(address: &str, key: &[u8; 32]) {
+fn handle_client(mut stream: TcpStream, default_key: [u8; 32], password: Option<String>) {
+    println!("[📥] Bağlantı alındı.");
+
+    loop {
+        let header = match read_file_header(&mut stream) {
+            Ok(Some(header)) => header,
+            Ok(None) => break,
+            Err(e) => {
+                println!("[⚠️] Başlık okunamadı: {}", e);
+                break;
+            }
+        };
+
+        println!("[📄] Alınan dosya başlığı: {:?}", header);
+
+        let transfer_key = match resolve_transfer_key(
+            &header,
+            &default_key,
+            password.as_deref(),
+        ) {
+            Ok(key) => key,
+            Err(e) => {
+                println!("[⚠️] Anahtar çözümlenemedi: {}", e);
+                let _ = stream.write_all(&[0]);
+                break;
+            }
+        };
+
+        if stream.write_all(&[1]).is_err() {
+            println!("[⚠️] İstemciye onay gönderilemedi.");
+            break;
+        }
+
+        if let Err(e) = receive_file(&mut stream, &header, &transfer_key) {
+            println!("[⚠️] Dosya alınamadı: {}", e);
+            break;
+        }
+    }
+
+    println!("[📥] Bağlantı kapatıldı.");
+}
+
+pub fn start_server(address: &str, key: &[u8; 32], password: Option<String>) {
     let listener = TcpListener::bind(address).expect("Sunucu başlatılamadı");
 
     println!("[📡] Sunucu başlatıldı: {}", address);
@@ -156,10 +195,10 @@ pub fn start_server(address: &str, key: &[u8; 32]) {
     for stream in listener.incoming() {
         match stream {
             Ok(stream) => {
-                // Her bağlantıyı ayrı bir thread'de ele al
-                let key_clone = key.clone();
+                let key_clone = *key;
+                let password_clone = password.clone();
                 std::thread::spawn(move || {
-                    handle_client(stream, &key_clone);
+                    handle_client(stream, key_clone, password_clone);
                 });
             }
             Err(e) => {

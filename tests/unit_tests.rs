@@ -56,6 +56,7 @@ mod tests {
             file_size: 1024,
             file_hash: "abcd1234".to_string(),
             relative_path: PathBuf::from("subdir/test.txt"),
+            pbkdf2_salt: None,
         };
         
         let serialized = serde_json::to_string(&header).unwrap();

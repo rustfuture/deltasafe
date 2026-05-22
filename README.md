@@ -85,13 +85,15 @@ Deltasafe artık **kullanıcı dostu** hale geldi! Karmaşık hex anahtarlar yer
 deltasafe server  # Geçici anahtar gösterilir
 ```
 
-### 🔍 Sunucu Keşfi (Yeni!)
+### 🔍 Sunucu Keşfi
 
 LAN'daki mevcut Deltasafe sunucularını otomatik olarak keşfedin:
 
 ```bash
 ./target/release/deltasafe discover
 ```
+
+> **Not:** mDNS (Zeroconf) keşfi henüz tamamlanmamıştır. `--auto` modu şu an yerel ağda **port taraması** (12340–12349) kullanır. Güvenilir keşif için `--target IP:port` ile manuel hedef belirtmeniz önerilir.
 
 ### 🖥️ Sunucu Modu
 
