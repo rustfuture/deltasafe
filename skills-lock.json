@@ -1,14 +1,61 @@
 {
-  "version": 1,
-  "source": "https://github.com/ZhangHanDong/rust-skills",
-  "skills": [
-    "coding-guidelines",
-    "domain-cli",
-    "m01-ownership",
-    "m06-error-handling",
-    "m07-concurrency",
-    "m10-performance",
-    "unsafe-checker"
+  "version": 2,
+  "packages": [
+    {
+      "name": "rust-skills",
+      "source": "https://github.com/ZhangHanDong/rust-skills",
+      "skills": [
+        "coding-guidelines",
+        "domain-cli",
+        "m01-ownership",
+        "m06-error-handling",
+        "m07-concurrency",
+        "m10-performance",
+        "unsafe-checker"
+      ],
+      "installCommand": "npx skills add ZhangHanDong/rust-skills -a cursor -y --skill coding-guidelines --skill domain-cli --skill m01-ownership --skill m06-error-handling --skill m07-concurrency --skill m10-performance --skill unsafe-checker"
+    },
+    {
+      "name": "superpowers",
+      "source": "https://github.com/obra/superpowers",
+      "skills": [
+        "test-driven-development",
+        "systematic-debugging",
+        "verification-before-completion",
+        "executing-plans",
+        "writing-plans",
+        "requesting-code-review",
+        "receiving-code-review"
+      ],
+      "installCommand": "npx skills add obra/superpowers -a cursor -y --skill test-driven-development --skill systematic-debugging --skill verification-before-completion --skill executing-plans --skill writing-plans --skill requesting-code-review --skill receiving-code-review"
+    },
+    {
+      "name": "cursor-best-practices",
+      "source": "https://github.com/HKTITAN/cursor-best-practices",
+      "skills": ["cursor-best-practices"],
+      "installCommand": "npx skills add HKTITAN/cursor-best-practices -a cursor -y"
+    },
+    {
+      "name": "anthropics-skills",
+      "source": "https://github.com/anthropics/skills",
+      "skills": ["skill-creator"],
+      "installCommand": "npx skills add anthropics/skills -a cursor -y --skill skill-creator"
+    },
+    {
+      "name": "agent-toolkit",
+      "source": "https://github.com/softaworks/agent-toolkit",
+      "skills": ["crafting-effective-readmes", "mermaid-diagrams"],
+      "installCommand": "npx skills add softaworks/agent-toolkit -a cursor -y --skill crafting-effective-readmes --skill mermaid-diagrams"
+    },
+    {
+      "name": "cursor-skills",
+      "source": "https://github.com/gardusig/cursor-skills",
+      "note": "Git/PR workflow pack; includes internal-* delegation skills required by gh-* commands",
+      "installCommand": "npx skills add gardusig/cursor-skills -a cursor -y"
+    }
   ],
-  "installCommand": "npx skills add ZhangHanDong/rust-skills -a cursor -y --skill coding-guidelines --skill domain-cli --skill m01-ownership --skill m06-error-handling --skill m07-concurrency --skill m10-performance --skill unsafe-checker"
+  "projectSkills": [
+    ".cursor/skills/deltasafe"
+  ],
+  "reinstallAll": "Run each installCommand from the repository root, then verify .agents/skills/ and .cursor/skills/"
 }
