@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "source": "https://github.com/ZhangHanDong/rust-skills",
+  "skills": [
+    "coding-guidelines",
+    "domain-cli",
+    "m01-ownership",
+    "m06-error-handling",
+    "m07-concurrency",
+    "m10-performance",
+    "unsafe-checker"
+  ],
+  "installCommand": "npx skills add ZhangHanDong/rust-skills -a cursor -y --skill coding-guidelines --skill domain-cli --skill m01-ownership --skill m06-error-handling --skill m07-concurrency --skill m10-performance --skill unsafe-checker"
+}

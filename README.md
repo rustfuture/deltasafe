@@ -78,15 +78,13 @@ Deltasafe artık **kullanıcı dostu** hale geldi! Karmaşık hex anahtarlar yer
 deltasafe server  # Geçici anahtar gösterilir
 ```
 
-### 🔍 Sunucu Keşfi
+### 🔍 Sunucu Keşfi (Yeni!)
 
 LAN'daki mevcut Deltasafe sunucularını otomatik olarak keşfedin:
 
 ```bash
 ./target/release/deltasafe discover
 ```
-
-> **Not:** mDNS (Zeroconf) keşfi henüz tamamlanmamıştır. `--auto` modu şu an yerel ağda **port taraması** (12340–12349) kullanır. Güvenilir keşif için `--target IP:port` ile manuel hedef belirtmeniz önerilir.
 
 ### 🖥️ Sunucu Modu
 
@@ -136,6 +134,31 @@ LAN'daki mevcut Deltasafe sunucularını otomatik olarak keşfedin:
 *   `--password`: Basit şifre (önerilen)
 *   `--key`: 64 karakterlik hex anahtar (ileri seviye)
 *   `--address`: Sunucu adresi (opsiyonel, otomatik tespit)
+
+## 🤖 Agent Skills
+
+Bu proje Cursor Agent Skills kullanır. Skill'ler `.agents/skills/` ve `.cursor/skills/` altında otomatik yüklenir.
+
+**Kurulu Rust skill paketi:** [ZhangHanDong/rust-skills](https://skills.sh/zhanghandong/rust-skills) (skills.sh'de ~26K kurulum)
+
+| Skill | Ne zaman devreye girer |
+|-------|------------------------|
+| `domain-cli` | Clap CLI, alt komutlar, stdout/stderr |
+| `m06-error-handling` | `anyhow`, `Result`, hata mesajları |
+| `m07-concurrency` | Tokio, thread, TCP eşzamanlılık |
+| `m01-ownership` | Borrow checker, lifetime sorunları |
+| `m10-performance` | Chunk transfer, I/O optimizasyonu |
+| `unsafe-checker` | Kripto / düşük seviye kod incelemesi |
+| `deltasafe` | Proje protokolü ve mimari kuralları |
+
+Yeniden kurulum:
+
+```bash
+npx skills add ZhangHanDong/rust-skills -a cursor -y \
+  --skill coding-guidelines --skill domain-cli --skill m01-ownership \
+  --skill m06-error-handling --skill m07-concurrency --skill m10-performance \
+  --skill unsafe-checker
+```
 
 ## 🧪 Test Etme
 
