@@ -23,7 +23,7 @@
 //! 
 //! // Senkronizasyon başlatma
 //! let key = [0u8; 32]; // 32 baytlık AES anahtarı
-//! start_sync("./source_folder", "192.168.1.100:12345", &key);
+//! start_sync("./source_folder", "192.168.1.100:12345", &key, None);
 //! ```
 
 pub mod cli;

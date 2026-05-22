@@ -3,13 +3,14 @@ mod sync;
 mod server;
 mod crypto;
 mod discovery;
-mod utils; // Yeni eklenen modül
+mod utils;
 
 use cli::{Cli, Commands};
 use clap::Parser;
 use sync::start_sync;
 use server::start_server;
-use anyhow::Result; // crypto ve discovery use'ları utils'e taşındı
+use utils::KeyRole;
+use anyhow::Result;
 
 #[tokio::main]
 async fn main() {
@@ -26,9 +27,9 @@ async fn run_command(command: &Commands) -> Result<()> {
         Commands::Sync { source, target, auto, auto_select, key, password } => {
             let target_address = utils::resolve_target_address(target.as_deref(), *auto, *auto_select).await?;
             println!("Sync başlatılıyor: {} -> {}", source, target_address);
-            
-            let key_bytes = utils::resolve_key(key.as_deref(), password.as_deref())?;
-            start_sync(source, &target_address, &key_bytes);
+
+            let resolved = utils::resolve_key(key.as_deref(), password.as_deref(), KeyRole::Client)?;
+            start_sync(source, &target_address, &resolved.key, resolved.pbkdf2_salt);
         },
         Commands::Discover { timeout } => {
             let servers = discovery::discover_servers(*timeout).await?;
@@ -55,9 +56,9 @@ async fn run_command(command: &Commands) -> Result<()> {
         Commands::Server { address, key, password } => {
             let server_address = utils::resolve_server_address(address.as_deref())?;
             println!("Sunucu başlatılıyor: {}", server_address);
-            
-            let key_bytes = utils::resolve_key(key.as_deref(), password.as_deref())?;
-            start_server(&server_address, &key_bytes);
+
+            let resolved = utils::resolve_key(key.as_deref(), password.as_deref(), KeyRole::Server)?;
+            start_server(&server_address, &resolved.key, password.clone());
         },
     }
     Ok(())

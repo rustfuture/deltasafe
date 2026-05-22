@@ -74,6 +74,14 @@ pub fn validate_password_strength(password: &str) -> Result<()> {
     Ok(())
 }
 
+/// Rastgele PBKDF2 salt üretir
+pub fn generate_random_salt() -> [u8; SALT_LENGTH] {
+    use rand::Rng;
+    let mut salt = [0u8; SALT_LENGTH];
+    rand::thread_rng().fill(&mut salt);
+    salt
+}
+
 /// Rastgele hex anahtar üretir
 pub fn generate_random_hex_key() -> String {
     use rand::Rng;
