@@ -271,17 +271,6 @@ deltasafe sync --source ./shared_files --target server.company.local:12345 --pas
 ```
 
 
-## ⚠️ Bilinen Sınırlamalar
-
-| Sınırlama | Açıklama |
-|-----------|----------|
-| IPv6 desteği yok | Sadece IPv4 ağlarda çalışır |
-| mDNS keşfi placeholder | Gerçek mDNS implementasyonu henüz tamamlanmadı, boş liste döndürür |
-| Port taraması sınırlı | Keşif sadece ilk 10 IP adresini ve 12340-12350 port aralığını tarar |
-| Sabit salt değeri | PBKDF2 salt'ı şu an sabit kodlanmıştır (`deltasafe_salt16`), production kullanımı için rastgele salt önerilir |
-| `connect` komutu | Henüz geliştirilme aşamasında, çalışmaz |
-| `watch` komutu | Henüz geliştirilme aşamasında, çalışmaz |
-
 ## 🤝 Katkıda Bulunma
 
 Projenin geliştirilmesine katkıda bulunmak isterseniz:
