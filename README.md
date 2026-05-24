@@ -10,29 +10,31 @@
 
 AES-256 şifrelemesi ile verilerinizin gizliliğini ve bütünlüğünü sağlarken, kullanım kolaylığından ödün vermez.
 
+> ⚠️ **Minimum Rust Versiyonu:** Bu proje `edition = "2024"` kullandığı için **Rust 1.85 veya üzeri** gerektirir.
+
 ## ✨ Özellikler
 
 ### 🔒 Güvenlik
 *   **AES-256-CBC Şifreleme:** Endüstri standardı şifreleme ile maksimum güvenlik
-*   **PBKDF2 Anahtar Türetme:** Basit şifrelerden güvenli anahtarlar üretir
+*   **PBKDF2 Anahtar Türetme:** Basit şifrelerden güvenli anahtarlar üretir (100.000 iterasyon)
 *   **BLAKE3 Hash Doğrulaması:** Dosya bütünlüğü garantisi
 *   **Rastgele IV:** Her chunk için benzersiz initialization vector
 
 ### 🚀 Kullanıcı Dostu
 *   **Basit Şifre Sistemi:** Karmaşık hex anahtarlar yerine "MyPassword123" 
-*   **Otomatik Sunucu Keşfi:** LAN'da sunucuları otomatik bulur
-*   **Akıllı Varsayılanlar:** Minimal parametre ile çalışır
+*   **Otomatik Sunucu Keşfi:** LAN'da sunucuları otomatik bulur (port tarama: 12340-12350)
+*   **Akıllı Varsayılanlar:** Minimal parametre ile çalışır (varsayılan port: 12345)
 *   **Progress Tracking:** Gerçek zamanlı transfer ilerlemesi
 
 ### ⚡ Performans
 *   **Chunk-based Transfer:** 4KB parçalar ile optimal aktarım
 *   **Paralel Bağlantı:** Sunucu birden fazla istemciyi destekler
-*   **Async/Await:** Modern Rust async programlama
+*   **Async/Await:** Modern Rust async programlama (Tokio runtime)
 *   **Dizin Yapısı Korunur:** Klasör hiyerarşisi aynen aktarılır
 
 ## 🛠️ Kurulum
 
-Deltasafe'i kullanabilmek için sisteminizde [Rust](https://www.rust-lang.org/tools/install) kurulu olması gerekmektedir.
+Deltasafe'i kullanabilmek için sisteminizde [Rust](https://www.rust-lang.org/tools/install) **1.85 veya üzeri** kurulu olması gerekmektedir.
 
 1.  **Rust Kurulumu:**
     Eğer Rust kurulu değilse, aşağıdaki komut ile `rustup`'ı kurabilirsiniz:
@@ -43,10 +45,15 @@ Deltasafe'i kullanabilmek için sisteminizde [Rust](https://www.rust-lang.org/to
     ```bash
     source $HOME/.cargo/env
     ```
+    
+    Mevcut Rust sürümünüzü güncellemek için:
+    ```bash
+    rustup update stable
+    ```
 
 2.  **Projeyi Klonlama:**
     ```bash
-    git clone https://github.com/your-username/deltasafe.git # Kendi repo adresinizi buraya ekleyin
+    git clone https://github.com/rustfuture/deltasafe.git
     cd deltasafe
     ```
 
@@ -148,6 +155,12 @@ cargo test test_file_hash_calculation
 
 # Test çıktısını detaylı göster
 cargo test -- --nocapture
+
+# Lint kontrolü (clippy)
+cargo clippy
+
+# Kod formatlama kontrolü
+cargo fmt --check
 ```
 
 ## 📊 Teknik Özellikler
@@ -157,6 +170,73 @@ cargo test -- --nocapture
 - **BLAKE3 hash doğrulaması** ile dosya bütünlüğü
 - **4KB chunk transfer** ile optimal performans
 - **Async/await** ile modern Rust mimarisi
+
+## 🔄 Transfer Protokolü
+
+İstemci-sunucu arası iletişim şu adımlarla gerçekleşir:
+
+```
+┌──────────┐                          ┌──────────┐
+│  Client  │                          │  Server  │
+└────┬─────┘                          └────┬─────┘
+     │                                     │
+     │  [4 byte] Header uzunluğu (BE)      │
+     │────────────────────────────────────▶│
+     │                                     │
+     │  [N byte] JSON FileHeader           │
+     │────────────────────────────────────▶│
+     │                                     │
+     │  [1 byte] ACK (0x01 = başarılı)     │
+     │◀────────────────────────────────────│
+     │                                     │
+     │  [16 byte IV + şifreli veri] × N    │
+     │────────────────────────────────────▶│
+     │                                     │
+```
+
+**FileHeader JSON yapısı:**
+```json
+{
+  "file_name": "dosya.txt",
+  "file_size": 1024,
+  "file_hash": "blake3_hex_hash",
+  "relative_path": "alt_klasor/dosya.txt"
+}
+```
+
+## 🏗️ Proje Yapısı
+
+```
+src/
+├── main.rs        # Giriş noktası, komut yönlendirme
+├── lib.rs         # Kütüphane arayüzü, modül dışa aktarımları
+├── cli.rs         # Komut satırı argümanları (Clap derive)
+├── crypto.rs      # PBKDF2 anahtar türetme, hex parse, validasyon
+├── sync.rs        # Dosya tarama, AES şifreleme, chunk gönderimi
+├── server.rs      # TCP dinleme, chunk alma, AES şifre çözme
+├── discovery.rs   # mDNS + port tarama ile sunucu keşfi
+└── utils.rs       # Anahtar/adres çözümleme yardımcıları
+```
+
+## 📦 Bağımlılıklar
+
+| Crate | Versiyon | Açıklama |
+|-------|----------|----------|
+| `clap` | 4.4 | Komut satırı argüman ayrıştırma (derive mode) |
+| `tokio` | 1.0 | Asenkron runtime (full features) |
+| `aes` | 0.8 | AES şifreleme algoritması |
+| `cbc` | 0.1 | CBC (Cipher Block Chaining) modu |
+| `cipher` | 0.4 | Block cipher trait'leri ve padding |
+| `pbkdf2` | 0.12 | Şifreden anahtar türetme |
+| `sha2` | 0.10 | SHA-256 (PBKDF2 ile kullanılır) |
+| `blake3` | 1.5 | Hızlı dosya hash hesaplama |
+| `serde` / `serde_json` | 1.0 | JSON serialization/deserialization |
+| `walkdir` | 2.5 | Dizin ağacı tarama |
+| `indicatif` | 0.17 | Terminal progress bar |
+| `mdns-sd` | 0.11 | mDNS sunucu keşfi |
+| `rand` | 0.8 | Rastgele IV ve anahtar üretimi |
+| `hex` | 0.4 | Hex encoding/decoding |
+| `anyhow` | 1.0 | Esnek hata yönetimi |
 
 ## 🎯 Kullanım Senaryoları
 
@@ -191,9 +271,34 @@ deltasafe sync --source ./shared_files --target server.company.local:12345 --pas
 ```
 
 
+## ⚠️ Bilinen Sınırlamalar
+
+| Sınırlama | Açıklama |
+|-----------|----------|
+| IPv6 desteği yok | Sadece IPv4 ağlarda çalışır |
+| mDNS keşfi placeholder | Gerçek mDNS implementasyonu henüz tamamlanmadı, boş liste döndürür |
+| Port taraması sınırlı | Keşif sadece ilk 10 IP adresini ve 12340-12350 port aralığını tarar |
+| Sabit salt değeri | PBKDF2 salt'ı şu an sabit kodlanmıştır (`deltasafe_salt16`), production kullanımı için rastgele salt önerilir |
+| `connect` komutu | Henüz geliştirilme aşamasında, çalışmaz |
+| `watch` komutu | Henüz geliştirilme aşamasında, çalışmaz |
+
 ## 🤝 Katkıda Bulunma
 
-Projenin geliştirilmesine katkıda bulunmak isterseniz, lütfen bir pull request açmaktan çekinmeyin. Her türlü katkı memnuniyetle karşılanır!
+Projenin geliştirilmesine katkıda bulunmak isterseniz:
+
+1.  Projeyi fork edin
+2.  Feature branch oluşturun (`git checkout -b feature/yeni-ozellik`)
+3.  Değişikliklerinizi commit edin (`git commit -m 'feat: Yeni özellik ekle'`)
+4.  Branch'e push edin (`git push origin feature/yeni-ozellik`)
+5.  Pull Request açın
+
+**Geliştirici kontrol listesi:**
+```bash
+cargo build          # Derleme hatası olmadığını doğrula
+cargo test           # Tüm testlerin geçtiğinden emin ol
+cargo clippy         # Lint uyarılarını kontrol et
+cargo fmt --check    # Kod formatını kontrol et
+```
 
 ## 📄 Lisans
 
