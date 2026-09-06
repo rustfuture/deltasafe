@@ -1,294 +1,96 @@
-# Deltasafe: Güvenli LAN Dosya Senkronizasyon Aracı 🚀
+# deltasafe
 
-## Genel Bakış
+`deltasafe` is a Rust command-line tool for authenticated file transfer over a trusted LAN. A sender streams regular files from a directory to a receiver; the receiver validates every encrypted frame, verifies the complete BLAKE3 digest, and publishes each file only after successful verification.
 
-**Deltasafe**, yerel ağ (LAN) üzerinde dosyaları güvenli ve **kullanıcı dostu** bir şekilde senkronize etmek için tasarlanmış, Rust ile geliştirilmiş modern bir komut satırı aracıdır. 
+This is a pre-1.0 portfolio project. The supported scope and security boundaries are intentionally explicit.
 
-🎯 **Artık karmaşık hex anahtarlar yok!** Basit şifreler kullanın: `--password "MyPassword123"`  
-🔍 **Otomatik sunucu keşfi!** Manuel IP girmeye gerek yok: `--auto`  
-🤖 **Akıllı varsayılanlar!** Minimal parametre ile çalışır: `deltasafe server`
+## What is implemented
 
-AES-256 şifrelemesi ile verilerinizin gizliliğini ve bütünlüğünü sağlarken, kullanım kolaylığından ödün vermez.
+- AES-256-GCM authenticated encryption for every data and control frame.
+- Per-file session identifiers and HKDF-derived session keys.
+- Deterministic, direction-separated nonces derived from frame indexes.
+- Password mode with a per-transfer PBKDF2 salt, or direct 32-byte hex keys.
+- Bounded JSON headers and frame sizes.
+- Exact byte-count checks, BLAKE3 verification, and authenticated final status.
+- Temporary-file receive path; incomplete or corrupt transfers are removed and never published.
+- Relative-path validation, symlink-parent rejection, and no-overwrite publication.
+- Multi-file, nested-directory, empty-file, wrong-password, corruption, truncation, and timeout-oriented tests.
+- Optional LAN discovery. mDNS is currently a placeholder; port scanning is best-effort and manual `--target` is the reproducible path.
 
-> ⚠️ **Minimum Rust Versiyonu:** Bu proje `edition = "2024"` kullandığı için **Rust 1.85 veya üzeri** gerektirir.
+## Security boundaries
 
-## ✨ Özellikler
+The protocol authenticates possession of the shared password or key and protects file contents against tampering in transit. It does not provide a certificate-based device identity, TLS, forward secrecy, durable replay prevention across receiver restarts, disk-quota enforcement, or protection against a local administrator who can alter the receive directory during a transfer. Use it on a network and filesystem you control; do not expose the listener directly to the public internet.
 
-### 🔒 Güvenlik
-*   **AES-256-CBC Şifreleme:** Endüstri standardı şifreleme ile maksimum güvenlik
-*   **PBKDF2 Anahtar Türetme:** Basit şifrelerden güvenli anahtarlar üretir (100.000 iterasyon)
-*   **BLAKE3 Hash Doğrulaması:** Dosya bütünlüğü garantisi
-*   **Rastgele IV:** Her chunk için benzersiz initialization vector
+The receiver rejects paths that are absolute, contain parent/root/prefix components, escape the canonical receive root, or overwrite an existing destination. The standard-library path checks cannot eliminate every operating-system-specific TOCTOU race against a hostile local process during a transfer; that limitation is documented rather than hidden.
 
-### 🚀 Kullanıcı Dostu
-*   **Basit Şifre Sistemi:** Karmaşık hex anahtarlar yerine "MyPassword123" 
-*   **Otomatik Sunucu Keşfi:** LAN'da sunucuları otomatik bulur (port tarama: 12340-12350)
-*   **Akıllı Varsayılanlar:** Minimal parametre ile çalışır (varsayılan port: 12345)
-*   **Progress Tracking:** Gerçek zamanlı transfer ilerlemesi
+## Requirements and build
 
-### ⚡ Performans
-*   **Chunk-based Transfer:** 4KB parçalar ile optimal aktarım
-*   **Paralel Bağlantı:** Sunucu birden fazla istemciyi destekler
-*   **Async/Await:** Modern Rust async programlama (Tokio runtime)
-*   **Dizin Yapısı Korunur:** Klasör hiyerarşisi aynen aktarılır
+- Rust 1.85 or newer. The crate uses edition 2021; the committed `Cargo.lock` is the reproducibility source for dependency versions.
+- A local network address reachable by both peers.
 
-## 🛠️ Kurulum
+~~~bash
+git clone https://github.com/rustfuture/deltasafe.git
+cd deltasafe
+cargo build --locked --release
+~~~
 
-Deltasafe'i kullanabilmek için sisteminizde [Rust](https://www.rust-lang.org/tools/install) **1.85 veya üzeri** kurulu olması gerekmektedir.
+## Usage
 
-1.  **Rust Kurulumu:**
-    Eğer Rust kurulu değilse, aşağıdaki komut ile `rustup`'ı kurabilirsiniz:
-    ```bash
-    curl --tlsv1.2 -sSf https://sh.rustup.rs | sh
-    ```
-    Kurulumdan sonra, Rust araç zincirini PATH'inize eklemek için terminalinizi yeniden başlatmanız veya aşağıdaki komutu çalıştırmanız gerekebilir:
-    ```bash
-    source $HOME/.cargo/env
-    ```
-    
-    Mevcut Rust sürümünüzü güncellemek için:
-    ```bash
-    rustup update stable
-    ```
+Start a receiver with a password:
 
-2.  **Projeyi Klonlama:**
-    ```bash
-    git clone https://github.com/rustfuture/deltasafe.git
-    cd deltasafe
-    ```
+~~~bash
+cargo run --locked -- server --address 127.0.0.1:12345 --password "MySecret123"
+~~~
 
-3.  **Bağımlılıkları Yükleme ve Derleme:**
-    ```bash
-    cargo build --release
-    ```
-    Bu komut, projenin bağımlılıklarını indirir ve optimize edilmiş bir çalıştırılabilir dosya oluşturur. Çalıştırılabilir dosya `target/release/deltasafe` konumunda bulunacaktır.
+Send a directory to that receiver from another terminal:
 
-## 🚀 Kullanım
+~~~bash
+cargo run --locked -- sync \
+  --source ./my_folder \
+  --target 127.0.0.1:12345 \
+  --password "MySecret123"
+~~~
 
-Deltasafe artık **kullanıcı dostu** hale geldi! Karmaşık hex anahtarlar yerine basit şifreler kullanabilir, sunucuları otomatik keşfedebilirsiniz.
+For direct key mode, pass the same 64-character hexadecimal key to both commands:
 
-### 🔑 Şifreleme Seçenekleri
+~~~bash
+cargo run --locked -- server \
+  --address 127.0.0.1:12345 \
+  --key 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+~~~
 
-**Seçenek 1: Basit Şifre (Önerilen)**
-```bash
---password "MySecretPassword123"
-```
+The receiver writes verified files under `received_files/` and refuses to replace an existing destination. Use `--auto`/`--auto-select` only when best-effort LAN discovery is acceptable; `--target` is the deterministic option.
 
-**Seçenek 2: Manuel Hex Anahtar (İleri Seviye)**
-```bash
---key 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
-```
+`connect` and `watch` are reserved CLI surfaces and currently report that they are not implemented. They are not presented as working features.
 
-**Seçenek 3: Otomatik Geçici Anahtar**
-```bash
-# Hiç parametre vermezseniz otomatik anahtar üretilir
-deltasafe server  # Geçici anahtar gösterilir
-```
+## Protocol outline
 
-### 🔍 Sunucu Keşfi (Yeni!)
+For each file, the sender sends a bounded JSON header containing the protocol version, a random session ID, relative path, declared size, BLAKE3 digest, and optional password salt. The receiver validates it and returns an authenticated `READY` frame. Data frames carry a sequential index and AES-GCM ciphertext. An authenticated empty `FINISH` frame covers empty files and terminates the file. The receiver checks the exact size and digest, atomically publishes the temporary file without overwriting an existing path, and returns an authenticated `COMPLETE` or `ERROR` frame.
 
-LAN'daki mevcut Deltasafe sunucularını otomatik olarak keşfedin:
+See [docs/architecture.md](docs/architecture.md) for the state machine and implementation boundaries.
 
-```bash
-./target/release/deltasafe discover
-```
+## Verification
 
-### 🖥️ Sunucu Modu
+Run the same local checks used by the portfolio review:
 
-**Basit Kullanım (Önerilen):**
-```bash
-./target/release/deltasafe server --password "MyPassword123"
-```
-
-**Gelişmiş Kullanım:**
-```bash
-./target/release/deltasafe server --address 0.0.0.0:12345 --password "MyPassword123"
-```
-
-**Otomatik Mod:**
-```bash
-./target/release/deltasafe server
-# Otomatik IP, port ve geçici anahtar üretir
-```
-
-### 📤 İstemci Modu (Sync)
-
-**Otomatik Sunucu Keşfi (Önerilen):**
-```bash
-# Kullanıcı seçimi ile (birden fazla sunucu varsa)
-./target/release/deltasafe sync --source ./my_folder --auto --password "MyPassword123"
-
-# Otomatik seçim (kullanıcı etkileşimi olmadan)
-./target/release/deltasafe sync --source ./my_folder --auto --auto-select --password "MyPassword123"
-```
-
-**Manuel Hedef Belirleme:**
-```bash
-./target/release/deltasafe sync --source ./my_folder --target 192.168.1.100:12345 --password "MyPassword123"
-```
-
-**Hex Anahtar ile (İleri Seviye):**
-```bash
-./target/release/deltasafe sync --source ./my_folder --target 192.168.1.100:12345 --key 0123456789abcdef...
-```
-
-### 📋 Parametre Açıklamaları
-
-*   `--source`: Senkronize edilecek kaynak klasör
-*   `--target`: Hedef sunucu IP:port (opsiyonel, --auto ile otomatik)
-*   `--auto`: Otomatik sunucu keşfi
-*   `--auto-select`: Birden fazla sunucu varsa otomatik seç (etkileşim olmadan)
-*   `--password`: Basit şifre (önerilen)
-*   `--key`: 64 karakterlik hex anahtar (ileri seviye)
-*   `--address`: Sunucu adresi (opsiyonel, otomatik tespit)
-
-## 🧪 Test Etme
-
-Projeyi test etmek için:
-
-```bash
-# Unit testleri çalıştır
-cargo test
-
-# Belirli bir test çalıştır
-cargo test test_file_hash_calculation
-
-# Test çıktısını detaylı göster
-cargo test -- --nocapture
-
-# Lint kontrolü (clippy)
-cargo clippy
-
-# Kod formatlama kontrolü
+~~~bash
 cargo fmt --check
-```
+cargo check --locked --all-targets
+cargo clippy --locked --all-targets -- -D warnings
+cargo test --locked -- --test-threads=1
+~~~
 
-## 📊 Teknik Özellikler
+The integration suite uses ephemeral loopback ports and temporary directories. It covers multiple nested files, empty and multi-chunk files, password salt exchange, wrong passwords, existing destinations, corrupted ciphertext, truncated frames, path traversal, and symlink-parent rejection. Passing tests are evidence for these scenarios only; they are not a general production security audit.
 
-- **AES-256-CBC şifreleme** ile maksimum güvenlik
-- **PBKDF2 anahtar türetme** ile basit şifre desteği  
-- **BLAKE3 hash doğrulaması** ile dosya bütünlüğü
-- **4KB chunk transfer** ile optimal performans
-- **Async/await** ile modern Rust mimarisi
+## Project layout
 
-## 🔄 Transfer Protokolü
+- `src/sync.rs` — source traversal, header construction, encrypted sender, final-status handling.
+- `src/server.rs` — bounded receiver, safe destination preparation, temporary-file publication.
+- `src/protocol.rs` — framing, HKDF session keys, AES-GCM and authenticated control messages.
+- `src/crypto.rs` — password/key parsing and PBKDF2 compatibility layer.
+- `src/discovery.rs` — best-effort LAN discovery.
+- `src/utils.rs` — CLI key and target resolution.
 
-İstemci-sunucu arası iletişim şu adımlarla gerçekleşir:
+## License
 
-```
-┌──────────┐                          ┌──────────┐
-│  Client  │                          │  Server  │
-└────┬─────┘                          └────┬─────┘
-     │                                     │
-     │  [4 byte] Header uzunluğu (BE)      │
-     │────────────────────────────────────▶│
-     │                                     │
-     │  [N byte] JSON FileHeader           │
-     │────────────────────────────────────▶│
-     │                                     │
-     │  [1 byte] ACK (0x01 = başarılı)     │
-     │◀────────────────────────────────────│
-     │                                     │
-     │  [16 byte IV + şifreli veri] × N    │
-     │────────────────────────────────────▶│
-     │                                     │
-```
-
-**FileHeader JSON yapısı:**
-```json
-{
-  "file_name": "dosya.txt",
-  "file_size": 1024,
-  "file_hash": "blake3_hex_hash",
-  "relative_path": "alt_klasor/dosya.txt"
-}
-```
-
-## 🏗️ Proje Yapısı
-
-```
-src/
-├── main.rs        # Giriş noktası, komut yönlendirme
-├── lib.rs         # Kütüphane arayüzü, modül dışa aktarımları
-├── cli.rs         # Komut satırı argümanları (Clap derive)
-├── crypto.rs      # PBKDF2 anahtar türetme, hex parse, validasyon
-├── sync.rs        # Dosya tarama, AES şifreleme, chunk gönderimi
-├── server.rs      # TCP dinleme, chunk alma, AES şifre çözme
-├── discovery.rs   # mDNS + port tarama ile sunucu keşfi
-└── utils.rs       # Anahtar/adres çözümleme yardımcıları
-```
-
-## 📦 Bağımlılıklar
-
-| Crate | Versiyon | Açıklama |
-|-------|----------|----------|
-| `clap` | 4.4 | Komut satırı argüman ayrıştırma (derive mode) |
-| `tokio` | 1.0 | Asenkron runtime (full features) |
-| `aes` | 0.8 | AES şifreleme algoritması |
-| `cbc` | 0.1 | CBC (Cipher Block Chaining) modu |
-| `cipher` | 0.4 | Block cipher trait'leri ve padding |
-| `pbkdf2` | 0.12 | Şifreden anahtar türetme |
-| `sha2` | 0.10 | SHA-256 (PBKDF2 ile kullanılır) |
-| `blake3` | 1.5 | Hızlı dosya hash hesaplama |
-| `serde` / `serde_json` | 1.0 | JSON serialization/deserialization |
-| `walkdir` | 2.5 | Dizin ağacı tarama |
-| `indicatif` | 0.17 | Terminal progress bar |
-| `mdns-sd` | 0.11 | mDNS sunucu keşfi |
-| `rand` | 0.8 | Rastgele IV ve anahtar üretimi |
-| `hex` | 0.4 | Hex encoding/decoding |
-| `anyhow` | 1.0 | Esnek hata yönetimi |
-
-## 🎯 Kullanım Senaryoları
-
-### 👥 **Yeni Başlayan Kullanıcı**
-```bash
-# Terminal 1: Sunucu başlat
-deltasafe server --password "basit123"
-
-# Terminal 2: Dosya gönder (kullanıcı seçimi ile)
-deltasafe sync --source ./documents --auto --password "basit123"
-
-# Veya otomatik seçim (etkileşim olmadan)
-deltasafe sync --source ./documents --auto --auto-select --password "basit123"
-```
-
-### 🔧 **İleri Seviye Kullanıcı**
-```bash
-# Önce keşif yap
-deltasafe discover --timeout 10
-
-# Manuel hedef ile gönder
-deltasafe sync --source ./folder --target 192.168.1.50:12345 --key 0123...cdef
-```
-
-### 🏢 **Kurumsal Kullanım**
-```bash
-# Sabit sunucu adresi
-deltasafe server --address 0.0.0.0:12345 --password "CompanySecret2024"
-
-# Toplu dosya transferi
-deltasafe sync --source ./shared_files --target server.company.local:12345 --password "CompanySecret2024"
-```
-
-
-## 🤝 Katkıda Bulunma
-
-Projenin geliştirilmesine katkıda bulunmak isterseniz:
-
-1.  Projeyi fork edin
-2.  Feature branch oluşturun (`git checkout -b feature/yeni-ozellik`)
-3.  Değişikliklerinizi commit edin (`git commit -m 'feat: Yeni özellik ekle'`)
-4.  Branch'e push edin (`git push origin feature/yeni-ozellik`)
-5.  Pull Request açın
-
-**Geliştirici kontrol listesi:**
-```bash
-cargo build          # Derleme hatası olmadığını doğrula
-cargo test           # Tüm testlerin geçtiğinden emin ol
-cargo clippy         # Lint uyarılarını kontrol et
-cargo fmt --check    # Kod formatını kontrol et
-```
-
-## 📄 Lisans
-
-Bu proje MIT Lisansı altında lisanslanmıştır. Daha fazla bilgi için `LICENSE` dosyasına bakınız.
+MIT. See [LICENSE](LICENSE).
