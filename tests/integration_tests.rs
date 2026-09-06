@@ -1,107 +1,139 @@
 use std::fs;
-use std::path::Path;
-use std::thread;
-use std::time::Duration;
-use deltasafe::server::start_server;
-use deltasafe::sync::start_sync;
+use std::net::TcpListener;
+use std::path::PathBuf;
+use std::thread::{self, JoinHandle};
+
+use anyhow::Result;
 use deltasafe::crypto::parse_hex_key;
+use deltasafe::server::serve_once;
+use deltasafe::sync::{calculate_file_hash, start_sync, CHUNK_SIZE};
 use deltasafe::utils::{resolve_key, KeyRole};
+use tempfile::TempDir;
 
-#[test]
-fn test_basic_sync() {
-    let test_dir = "test_data";
-    let source_dir = format!("{}/source", test_dir);
-    let received_dir = "received_files";
+const TEST_KEY: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 
-    let _ = fs::remove_dir_all(test_dir);
-    let _ = fs::remove_dir_all(received_dir);
+struct Receiver {
+    _sandbox: TempDir,
+    root: PathBuf,
+    address: String,
+    handle: JoinHandle<Result<()>>,
+}
 
-    fs::create_dir_all(&source_dir).unwrap();
-    fs::write(format!("{}/test.txt", source_dir), "Hello, Deltasafe!").unwrap();
-    fs::create_dir_all(format!("{}/nested", source_dir)).unwrap();
-    fs::write(format!("{}/nested/other.txt", source_dir), "Second file").unwrap();
+fn spawn_receiver(key: [u8; 32], password: Option<String>) -> Receiver {
+    let sandbox = tempfile::tempdir().unwrap();
+    let root = sandbox.path().join("received");
+    let thread_root = root.clone();
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap().to_string();
+    let handle =
+        thread::spawn(move || serve_once(listener, &key, password.as_deref(), &thread_root));
+    Receiver {
+        _sandbox: sandbox,
+        root,
+        address,
+        handle,
+    }
+}
 
-    let test_key = parse_hex_key(
-        "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-    ).unwrap();
-
-    let server_handle = thread::spawn(move || {
-        start_server("127.0.0.1:12346", &test_key, None);
-    });
-
-    thread::sleep(Duration::from_millis(500));
-
-    start_sync(&source_dir, "127.0.0.1:12346", &test_key, None);
-
-    thread::sleep(Duration::from_millis(500));
-
-    assert!(Path::new("received_files/test.txt").exists());
-    assert!(Path::new("received_files/nested/other.txt").exists());
-
-    let received_content = fs::read_to_string("received_files/test.txt").unwrap();
-    assert_eq!(received_content, "Hello, Deltasafe!");
-
-    let received_nested = fs::read_to_string("received_files/nested/other.txt").unwrap();
-    assert_eq!(received_nested, "Second file");
-
-    drop(server_handle);
-
-    let _ = fs::remove_dir_all(test_dir);
-    let _ = fs::remove_dir_all(received_dir);
+fn source_tree() -> (TempDir, PathBuf, Vec<u8>) {
+    let sandbox = tempfile::tempdir().unwrap();
+    let source = sandbox.path().join("source");
+    fs::create_dir_all(source.join("nested")).unwrap();
+    fs::write(source.join("hello.txt"), b"Hello, Deltasafe!").unwrap();
+    fs::write(source.join("empty.bin"), []).unwrap();
+    let large = vec![0x5a; CHUNK_SIZE * 3 + 17];
+    fs::write(source.join("nested/large.bin"), &large).unwrap();
+    (sandbox, source, large)
 }
 
 #[test]
-fn test_password_sync_with_session_salt() {
-    let test_dir = "test_data_password";
-    let source_dir = format!("{}/source", test_dir);
-    let received_dir = "received_files";
+fn transfers_multiple_nested_empty_and_multichunk_files() {
+    let key = parse_hex_key(TEST_KEY).unwrap();
+    let receiver = spawn_receiver(key, None);
+    let (_source_sandbox, source, large) = source_tree();
 
-    let _ = fs::remove_dir_all(test_dir);
-    let _ = fs::remove_dir_all(received_dir);
+    start_sync(source.to_str().unwrap(), &receiver.address, &key, None).unwrap();
+    receiver.handle.join().unwrap().unwrap();
 
-    fs::create_dir_all(&source_dir).unwrap();
-    fs::write(format!("{}/secret.txt", source_dir), "Password protected").unwrap();
-
-    let password = "testpassword123".to_string();
-    let server_password = password.clone();
-
-    let server_handle = thread::spawn(move || {
-        let resolved = resolve_key(None, Some(&server_password), KeyRole::Server).unwrap();
-        start_server("127.0.0.1:12347", &resolved.key, Some(server_password));
-    });
-
-    thread::sleep(Duration::from_millis(500));
-
-    let resolved = resolve_key(None, Some(&password), KeyRole::Client).unwrap();
-    start_sync(
-        &source_dir,
-        "127.0.0.1:12347",
-        &resolved.key,
-        resolved.pbkdf2_salt,
+    assert_eq!(
+        fs::read(receiver.root.join("hello.txt")).unwrap(),
+        b"Hello, Deltasafe!"
     );
-
-    thread::sleep(Duration::from_millis(500));
-
-    assert!(Path::new("received_files/secret.txt").exists());
-    let content = fs::read_to_string("received_files/secret.txt").unwrap();
-    assert_eq!(content, "Password protected");
-
-    drop(server_handle);
-
-    let _ = fs::remove_dir_all(test_dir);
-    let _ = fs::remove_dir_all(received_dir);
+    assert_eq!(fs::read(receiver.root.join("empty.bin")).unwrap(), b"");
+    assert_eq!(
+        fs::read(receiver.root.join("nested/large.bin")).unwrap(),
+        large
+    );
 }
 
 #[test]
-fn test_file_operations() {
-    use deltasafe::sync::{calculate_file_hash, CHUNK_SIZE};
+fn password_mode_uses_the_transmitted_salt_and_waits_for_final_status() {
+    let password = "correct-password-123";
+    let server_key = resolve_key(None, Some(password), KeyRole::Server)
+        .unwrap()
+        .key;
+    let receiver = spawn_receiver(server_key, Some(password.to_owned()));
+    let (_source_sandbox, source, _) = source_tree();
+    let client = resolve_key(None, Some(password), KeyRole::Client).unwrap();
 
-    let test_file = "tmp_rovodev_integration_test.txt";
-    fs::write(test_file, "Integration test content").unwrap();
+    start_sync(
+        source.to_str().unwrap(),
+        &receiver.address,
+        &client.key,
+        client.pbkdf2_salt,
+    )
+    .unwrap();
+    receiver.handle.join().unwrap().unwrap();
+    assert_eq!(
+        fs::read(receiver.root.join("hello.txt")).unwrap(),
+        b"Hello, Deltasafe!"
+    );
+}
 
-    let hash = calculate_file_hash(std::path::Path::new(test_file)).unwrap();
+#[test]
+fn wrong_password_is_reported_and_publishes_no_file() {
+    let server_password = "server-password-123";
+    let server_key = resolve_key(None, Some(server_password), KeyRole::Server)
+        .unwrap()
+        .key;
+    let receiver = spawn_receiver(server_key, Some(server_password.to_owned()));
+    let (_source_sandbox, source, _) = source_tree();
+    let client = resolve_key(None, Some("wrong-password-456"), KeyRole::Client).unwrap();
+
+    let result = start_sync(
+        source.to_str().unwrap(),
+        &receiver.address,
+        &client.key,
+        client.pbkdf2_salt,
+    );
+    assert!(result.is_err());
+    assert!(receiver.handle.join().unwrap().is_err());
+    assert!(!receiver.root.join("hello.txt").exists());
+}
+
+#[test]
+fn existing_destination_is_preserved() {
+    let key = parse_hex_key(TEST_KEY).unwrap();
+    let sandbox = tempfile::tempdir().unwrap();
+    let root = sandbox.path().join("received");
+    fs::create_dir_all(&root).unwrap();
+    fs::write(root.join("hello.txt"), b"original").unwrap();
+    let thread_root = root.clone();
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap().to_string();
+    let handle = thread::spawn(move || serve_once(listener, &key, None, &thread_root));
+    let (_source_sandbox, source, _) = source_tree();
+
+    assert!(start_sync(source.to_str().unwrap(), &address, &key, None).is_err());
+    assert!(handle.join().unwrap().is_err());
+    assert_eq!(fs::read(root.join("hello.txt")).unwrap(), b"original");
+}
+
+#[test]
+fn hashes_files_without_loading_them_as_text() {
+    let sandbox = tempfile::tempdir().unwrap();
+    let path = sandbox.path().join("binary.dat");
+    fs::write(&path, [0, 159, 146, 150, 255]).unwrap();
+    let hash = calculate_file_hash(&path).unwrap();
     assert_eq!(hash.len(), 64);
-    assert_eq!(CHUNK_SIZE, 4096);
-
-    fs::remove_file(test_file).unwrap();
 }

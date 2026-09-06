@@ -1,20 +1,28 @@
 use std::fs::{self, File};
-use std::io::{BufReader, Read, Write};
+use std::io::{BufReader, Read};
+use std::net::{Shutdown, TcpStream};
 use std::path::{Path, PathBuf};
-use std::net::TcpStream;
-use blake3;
-use aes::Aes256;
-use cipher::{block_padding::Pkcs7, BlockEncryptMut, KeyIvInit};
-use rand::Rng;
-use serde::{Serialize, Deserialize};
-use walkdir::WalkDir;
+use std::time::Duration;
+
+use anyhow::{bail, Context, Result};
 use indicatif::{ProgressBar, ProgressStyle};
-use anyhow::{Result, Context};
+use rand::RngCore;
+use serde::{Deserialize, Serialize};
+use walkdir::WalkDir;
+
+use crate::protocol::{
+    decrypt_frame, derive_session_key, encrypt_frame, read_frame, write_frame, write_header,
+    CLIENT_DIRECTION, KIND_COMPLETE, KIND_DATA, KIND_ERROR, KIND_FINISH, KIND_READY, MAX_FILE_SIZE,
+    MAX_HEADER_SIZE, PROTOCOL_VERSION, SERVER_DIRECTION,
+};
 
 pub const CHUNK_SIZE: usize = 4096;
+const IO_TIMEOUT: Duration = Duration::from_secs(30);
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct FileHeader {
+    pub protocol_version: u16,
+    pub session_id: String,
     pub file_name: String,
     pub file_size: u64,
     pub file_hash: String,
@@ -23,12 +31,12 @@ pub struct FileHeader {
     pub pbkdf2_salt: Option<String>,
 }
 
-/// Bir dosyanın tamamının BLAKE3 hash'ini hesaplar.
+/// Calculates the BLAKE3 digest of a file without loading it into memory.
 pub fn calculate_file_hash(path: &Path) -> Result<String, std::io::Error> {
     let file = File::open(path)?;
     let mut reader = BufReader::new(file);
     let mut hasher = blake3::Hasher::new();
-    let mut buffer = [0; 4096];
+    let mut buffer = [0; CHUNK_SIZE];
 
     loop {
         let bytes_read = reader.read(&mut buffer)?;
@@ -40,155 +48,200 @@ pub fn calculate_file_hash(path: &Path) -> Result<String, std::io::Error> {
     Ok(hasher.finalize().to_hex().to_string())
 }
 
-fn write_framed_payload(stream: &mut TcpStream, payload: &[u8]) -> Result<()> {
-    let len = payload.len() as u32;
-    stream.write_all(&len.to_be_bytes())
-        .context("Chunk uzunluğu gönderilemedi")?;
-    stream.write_all(payload)
-        .context("Chunk gönderilemedi")?;
-    Ok(())
-}
-
-/// TCP üzerinden chunk'ı hedef IP'ye gönderir.
-pub fn send_chunk_to_server(
-    stream: &mut TcpStream,
-    chunk_data: &[u8],
+/// Sends every regular file under `source` and returns only after the receiver
+/// authenticates, verifies, and publishes every file.
+pub fn start_sync(
+    source: &str,
+    target: &str,
     key: &[u8; 32],
-    progress: &ProgressBar,
+    pbkdf2_salt: Option<[u8; 16]>,
 ) -> Result<()> {
-    let (encrypted_chunk, iv) = encrypt_chunk(chunk_data, key);
-    let mut payload = Vec::with_capacity(iv.len() + encrypted_chunk.len());
-    payload.extend_from_slice(&iv);
-    payload.extend_from_slice(&encrypted_chunk);
-
-    write_framed_payload(stream, &payload)?;
-    progress.inc(chunk_data.len() as u64);
-    Ok(())
-}
-
-pub fn start_sync(source: &str, target: &str, key: &[u8; 32], pbkdf2_salt: Option<[u8; 16]>) {
-    if let Err(e) = sync_files(source, target, key, pbkdf2_salt) {
-        eprintln!("[❌] Senkronizasyon hatası: {}", e);
-    }
-}
-
-fn sync_files(source: &str, target: &str, key: &[u8; 32], pbkdf2_salt: Option<[u8; 16]>) -> Result<()> {
-    println!("[🔍] Kaynak klasör taranıyor: {}", source);
-
-    let path = Path::new(source);
-    if !path.exists() || !path.is_dir() {
-        anyhow::bail!("'{}' bir klasör değil veya bulunamadı.", source);
+    let source_root = Path::new(source);
+    if !source_root.is_dir() {
+        bail!("'{source}' is not an existing directory");
     }
 
-    let salt_hex = pbkdf2_salt.map(hex::encode);
-
-    let mut files = Vec::new();
-    let mut total_size = 0u64;
-
-    for entry in WalkDir::new(path).into_iter().filter_map(|e| e.ok()) {
-        let file_path = entry.path();
-        if file_path.is_file() {
-            let metadata = fs::metadata(&file_path)
-                .context("Dosya metadata'sı okunamadı")?;
-            total_size += metadata.len();
-            files.push(file_path.to_path_buf());
+    let mut files = collect_files(source_root)?;
+    files.sort();
+    let total_size = files.iter().try_fold(0u64, |total, path| {
+        let size = fs::metadata(path)
+            .with_context(|| format!("Could not read metadata for {}", path.display()))?
+            .len();
+        if size > MAX_FILE_SIZE {
+            bail!(
+                "{} exceeds the per-file limit of {MAX_FILE_SIZE} bytes",
+                path.display()
+            );
         }
-    }
-
-    println!("[📊] {} dosya bulundu, toplam boyut: {} bayt", files.len(), total_size);
+        total
+            .checked_add(size)
+            .context("Total source size exceeds the supported range")
+    })?;
 
     let progress = ProgressBar::new(total_size);
     progress.set_style(
         ProgressStyle::default_bar()
             .template("[{elapsed_precise}] {bar:40.cyan/blue} {pos:>7}/{len:7} {msg}")
-            .unwrap()
-            .progress_chars("##-")
+            .context("Could not configure progress display")?
+            .progress_chars("##-"),
     );
 
-    println!("[🔗] Sunucuya bağlanılıyor: {}", target);
     let mut stream = TcpStream::connect(target)
-        .context("Sunucuya bağlanılamadı")?;
+        .with_context(|| format!("Could not connect to receiver at {target}"))?;
+    configure_stream(&stream)?;
 
-    println!("[📡] Bağlantı kuruldu: {}", target);
-
+    let salt_hex = pbkdf2_salt.map(hex::encode);
     for file_path in files {
-        let file_name = file_path.file_name()
-            .and_then(|n| n.to_str())
-            .context("Geçersiz dosya adı")?
-            .to_string();
-
-        let file_metadata = fs::metadata(&file_path)
-            .context("Dosya metadata'sı okunamadı")?;
-        let file_size = file_metadata.len();
-
-        let relative_path = file_path.strip_prefix(path)
-            .context("Relative path hesaplanamadı")?
-            .to_path_buf();
-
-        let file_hash = calculate_file_hash(&file_path)
-            .context("Dosya hash'i hesaplanamadı")?;
-
-        progress.set_message(format!("Gönderiliyor: {}", file_name));
-
-        let header = FileHeader {
-            file_name: file_name.clone(),
-            file_size,
-            file_hash,
-            relative_path,
-            pbkdf2_salt: salt_hex.clone(),
-        };
-
-        let serialized_header = serde_json::to_string(&header)
-            .context("Header serialize edilemedi")?;
-        let header_len = serialized_header.len() as u32;
-
-        stream.write_all(&header_len.to_be_bytes())
-            .context("Header uzunluğu gönderilemedi")?;
-        stream.write_all(serialized_header.as_bytes())
-            .context("Header gönderilemedi")?;
-
-        let mut response_buffer = [0; 1];
-        stream.read_exact(&mut response_buffer)
-            .context("Sunucudan yanıt alınamadı")?;
-
-        if response_buffer[0] != 1 {
-            anyhow::bail!("Sunucudan onay alınamadı: {}", file_name);
-        }
-
-        let file = File::open(&file_path)
-            .context("Dosya açılamadı")?;
-        let mut reader = BufReader::new(file);
-        let mut buffer = vec![0u8; CHUNK_SIZE];
-
-        loop {
-            let bytes_read = reader.read(&mut buffer)
-                .context("Dosya okunamadı")?;
-            if bytes_read == 0 {
-                break;
-            }
-            let chunk_data = &buffer[..bytes_read];
-            send_chunk_to_server(&mut stream, chunk_data, key, &progress)
-                .context("Chunk gönderilemedi")?;
-        }
+        send_file(
+            &mut stream,
+            source_root,
+            &file_path,
+            key,
+            salt_hex.as_deref(),
+            &progress,
+        )?;
     }
 
-    progress.finish_with_message("Tüm dosyalar başarıyla gönderildi!");
-    println!("[🚀] Senkronizasyon tamamlandı.");
+    stream
+        .shutdown(Shutdown::Write)
+        .context("Could not finish the transfer connection")?;
+    progress.finish_with_message("All files were verified by the receiver");
     Ok(())
 }
 
-type Aes256CbcEnc = cbc::Encryptor<Aes256>;
+fn collect_files(source_root: &Path) -> Result<Vec<PathBuf>> {
+    let mut files = Vec::new();
+    for entry in WalkDir::new(source_root) {
+        let entry = entry.with_context(|| {
+            format!(
+                "Could not traverse source directory {}",
+                source_root.display()
+            )
+        })?;
+        if entry.file_type().is_file() {
+            files.push(entry.into_path());
+        }
+    }
+    Ok(files)
+}
 
-fn encrypt_chunk(chunk: &[u8], key: &[u8; 32]) -> (Vec<u8>, Vec<u8>) {
-    let mut iv = [0u8; 16];
-    rand::thread_rng().fill(&mut iv);
+fn send_file(
+    stream: &mut TcpStream,
+    source_root: &Path,
+    file_path: &Path,
+    base_key: &[u8; 32],
+    salt_hex: Option<&str>,
+    progress: &ProgressBar,
+) -> Result<()> {
+    let relative_path = file_path
+        .strip_prefix(source_root)
+        .with_context(|| format!("Could not make {} relative", file_path.display()))?
+        .to_path_buf();
+    let file_name = relative_path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .context("Source filename is not valid UTF-8")?
+        .to_owned();
+    let file_size = fs::metadata(file_path)
+        .with_context(|| format!("Could not read metadata for {}", file_path.display()))?
+        .len();
+    let file_hash = calculate_file_hash(file_path)
+        .with_context(|| format!("Could not hash {}", file_path.display()))?;
 
-    let mut buf = chunk.to_vec();
-    buf.resize(chunk.len() + 16, 0);
+    let mut session_id = [0u8; 16];
+    rand::thread_rng().fill_bytes(&mut session_id);
+    let header = FileHeader {
+        protocol_version: PROTOCOL_VERSION,
+        session_id: hex::encode(session_id),
+        file_name,
+        file_size,
+        file_hash,
+        relative_path,
+        pbkdf2_salt: salt_hex.map(str::to_owned),
+    };
+    let header_bytes = serde_json::to_vec(&header).context("Could not serialize file header")?;
+    if header_bytes.len() > MAX_HEADER_SIZE {
+        bail!("File header exceeds the {MAX_HEADER_SIZE}-byte limit");
+    }
+    let session_key = derive_session_key(base_key, &session_id)?;
 
-    let cipher = Aes256CbcEnc::new(key.into(), &iv.into());
-    let ciphertext = cipher.encrypt_padded_mut::<Pkcs7>(&mut buf, chunk.len())
-        .expect("Şifreleme hatası")
-        .to_vec();
-    (ciphertext, iv.to_vec())
+    progress.set_message(format!("Sending {}", header.relative_path.display()));
+    write_header(stream, &header_bytes)?;
+    expect_status(stream, &header_bytes, &session_key, 0, KIND_READY)?;
+
+    let mut reader = BufReader::new(
+        File::open(file_path).with_context(|| format!("Could not open {}", file_path.display()))?,
+    );
+    let mut buffer = [0u8; CHUNK_SIZE];
+    let mut index = 0u64;
+    loop {
+        let bytes_read = reader
+            .read(&mut buffer)
+            .with_context(|| format!("Could not read {}", file_path.display()))?;
+        if bytes_read == 0 {
+            break;
+        }
+        let frame = encrypt_frame(
+            &header_bytes,
+            &session_key,
+            CLIENT_DIRECTION,
+            KIND_DATA,
+            index,
+            &buffer[..bytes_read],
+        )?;
+        write_frame(stream, &frame)?;
+        progress.inc(bytes_read as u64);
+        index = index.checked_add(1).context("Frame index overflow")?;
+    }
+
+    let finish = encrypt_frame(
+        &header_bytes,
+        &session_key,
+        CLIENT_DIRECTION,
+        KIND_FINISH,
+        index,
+        &[],
+    )?;
+    write_frame(stream, &finish)?;
+    expect_status(stream, &header_bytes, &session_key, 1, KIND_COMPLETE)
+        .with_context(|| format!("Receiver rejected {}", header.relative_path.display()))?;
+    Ok(())
+}
+
+fn expect_status(
+    stream: &mut TcpStream,
+    header_bytes: &[u8],
+    session_key: &[u8; 32],
+    expected_index: u64,
+    expected_kind: u8,
+) -> Result<()> {
+    let frame = read_frame(stream)?.context("Receiver closed before sending transfer status")?;
+    if frame.index != expected_index {
+        bail!(
+            "Unexpected receiver status index: expected {expected_index}, got {}",
+            frame.index
+        );
+    }
+    let plaintext = decrypt_frame(header_bytes, session_key, SERVER_DIRECTION, &frame)?;
+    if !plaintext.is_empty() {
+        bail!("Receiver status contained unexpected data");
+    }
+    match frame.kind {
+        kind if kind == expected_kind => Ok(()),
+        KIND_ERROR => bail!("Receiver reported a transfer error"),
+        kind => bail!("Unexpected receiver status kind: {kind}"),
+    }
+}
+
+fn configure_stream(stream: &TcpStream) -> Result<()> {
+    stream
+        .set_read_timeout(Some(IO_TIMEOUT))
+        .context("Could not set read timeout")?;
+    stream
+        .set_write_timeout(Some(IO_TIMEOUT))
+        .context("Could not set write timeout")?;
+    stream
+        .set_nodelay(true)
+        .context("Could not enable TCP_NODELAY")?;
+    Ok(())
 }
