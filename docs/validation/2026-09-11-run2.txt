@@ -1,0 +1,25 @@
+== deltasafe loopback demo ==
+repo:    <repo>
+commit:  0d73ed1b2fae664037cc0bff3cd908bcd6d02d4a
+dirty:   0 path(s)
+command: cargo build --locked
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.04s
+binary:  <repo>/target/debug/deltasafe
+sha256:  63a8b9c45dbb1c60feb93e86fb7b3a0dcaff9f42f998c844aaa512dd1ce23c46
+workdir: /var/folders/v1/5g8zpd5j0h56kyw4dn14f_g40000gn/T//deltasafe-demo.4qW3cL
+receiver ready on 127.0.0.1:52308 (pid 17230)
+readiness proof: process alive; log marker 'Receiver listening on 127.0.0.1:52308'; TCP connect accepted
+== wrong password (valid length) ==
+wrong password rejected (sender exit 1); receiver tree has no files or symlinks
+note: receiver tree has directories (allowed by the cleanup contract):
+/var/folders/v1/5g8zpd5j0h56kyw4dn14f_g40000gn/T//deltasafe-demo.4qW3cL/receiver/received_files
+== correct password transfer ==
+verified: empty.bin (0 bytes, sha256 e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855)
+verified: hello.txt (18 bytes, sha256 8865d5a4ef3f8d8a1d90e3d3fea9babd540667a71b264656c720326eed41d9fa)
+verified: nested/large.bin (20000 bytes, sha256 d67ba24fd78cd3c0a694bf8f61d46649d0ee301f6895c19cb48268eb12ffe844)
+receiver inventory matches fixtures exactly
+== stopping receiver ==
+DEMO PASS
+commit:  0d73ed1b2fae664037cc0bff3cd908bcd6d02d4a
+binary:  63a8b9c45dbb1c60feb93e86fb7b3a0dcaff9f42f998c844aaa512dd1ce23c46
+note: loopback only; wrong-password and integrity behaviors are also covered by tests/integration_tests.rs

@@ -1,0 +1,15 @@
+== deltasafe loopback demo ==
+repo:    <repo>
+commit:  0d73ed1b2fae664037cc0bff3cd908bcd6d02d4a
+dirty:   0 path(s)
+command: cargo build --locked
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.04s
+binary:  <repo>/target/debug/deltasafe
+sha256:  63a8b9c45dbb1c60feb93e86fb7b3a0dcaff9f42f998c844aaa512dd1ce23c46
+workdir: /var/folders/v1/5g8zpd5j0h56kyw4dn14f_g40000gn/T//deltasafe-demo.kaWlrq
+FAIL: receiver exited before becoming ready
+== failure evidence: receiver log (/var/folders/v1/5g8zpd5j0h56kyw4dn14f_g40000gn/T//deltasafe-demo.kaWlrq/server.log) ==
+Sunucu başlatılıyor: 127.0.0.1:52314
+[❌] Hata: Could not bind receiver to 127.0.0.1:52314
+== failure evidence: sender log (/var/folders/v1/5g8zpd5j0h56kyw4dn14f_g40000gn/T//deltasafe-demo.kaWlrq/client.log) ==
+failure logs copied to /var/folders/v1/5g8zpd5j0h56kyw4dn14f_g40000gn/T/opencode/deltasafe-demo-evidence/occupied-evidence
