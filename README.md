@@ -82,6 +82,8 @@ cargo test --locked -- --test-threads=1
 
 The integration suite uses ephemeral loopback ports and temporary directories. It covers multiple nested files, empty and multi-chunk files, password salt exchange, wrong passwords, existing destinations, corrupted ciphertext, truncated frames, path traversal, and symlink-parent rejection. Passing tests are evidence for these scenarios only; they are not a general production security audit.
 
+A localhost demo harness is kept at [scripts/demo_loopback.sh](scripts/demo_loopback.sh). It proves receiver ownership before transfer, verifies byte/SHA-256 equality for every fixture, checks that a valid-length wrong password publishes no file anywhere under the receiver root, and preserves raw failure logs. Harnessed runs and the controlled startup-failure results are recorded in [docs/validation/2026-09-11-demo-hardening.md](docs/validation/2026-09-11-demo-hardening.md).
+
 ## Project layout
 
 - `src/sync.rs` — source traversal, header construction, encrypted sender, final-status handling.
