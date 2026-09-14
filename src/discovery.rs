@@ -69,10 +69,11 @@ pub async fn discover_servers(timeout_secs: u64) -> Result<Vec<DiscoveredServer>
 /// Server discovery via port scanning.
 ///
 /// The whole sweep is bounded by `timeout_secs`, which is the value the `discover` command
-/// exposes as `--timeout`.
+/// exposes as `--timeout`. The CLI rejects zero; a zero passed in programmatically expires the
+/// budget immediately and reports a timeout rather than silently scanning for a second.
 async fn discover_via_port_scan(timeout_secs: u64) -> Result<Vec<DiscoveredServer>> {
     let local_network = get_local_network_range()?;
-    let budget = timeout_secs.max(1);
+    let budget = timeout_secs;
 
     println!(
         "[🔎] Scanning up to {SCAN_HOST_LIMIT} host(s) on the local network with a {budget}s budget..."
