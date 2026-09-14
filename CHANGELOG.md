@@ -44,7 +44,9 @@ All notable changes to this project are documented here.
 - The CLI help text, runtime messages, and error output are now English throughout. Previously the
   command surface was Turkish while the README, protocol errors, and logs were English.
 - `discover --timeout` is now honoured. The port scan previously ignored the value and always ran
-  with a fixed per-connection timeout; the sweep is now bounded by the budget the caller passes.
+  with a fixed per-connection timeout; the sweep is now bounded by the budget the caller passes. The
+  per-connection connect timeout is a named constant, raised from 100 ms to 200 ms so that a slow but
+  reachable host is not missed while the overall budget still bounds the sweep.
 - The port scan is documented as a heuristic: an open port is not a verified peer identity.
 
 ### Removed
