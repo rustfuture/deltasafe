@@ -1,15 +1,15 @@
 == deltasafe loopback demo ==
 repo:    <repo>
-commit:  bd6614cdc1a0ec719006c8cb0b560c9ee83c233a
+commit:  410c306cf03ceb74167e363a41e3efd2581831f5
 dirty:   0 path(s)
 command: cargo build --locked
-    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.06s
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.05s
 binary:  <repo>/target/debug/deltasafe
-sha256:  533fc586851b25980f7f0ec58dc07929887968fe2124d5a41c7669dbf6b48da0
-workdir: /var/folders/v1/5g8zpd5j0h56kyw4dn14f_g40000gn/T//deltasafe-demo.etuqft
+sha256:  5e613612b64e70e09d5f21a7976bd7a1b6d52ac53c1266af03a7adadca522da6
+workdir: /tmp/deltasafe-demo.a8whNb
 FAIL: receiver exited before becoming ready
-== failure evidence: receiver log (/var/folders/v1/5g8zpd5j0h56kyw4dn14f_g40000gn/T//deltasafe-demo.etuqft/server.log) ==
+== failure evidence: receiver log (/tmp/deltasafe-demo.a8whNb/server.log) ==
 Starting server: 192.0.2.1:12345
 [❌] Error: Could not bind receiver to 192.0.2.1:12345
-== failure evidence: sender log (/var/folders/v1/5g8zpd5j0h56kyw4dn14f_g40000gn/T//deltasafe-demo.etuqft/client.log) ==
-failure logs copied to /tmp/ev-unbindable
+== failure evidence: sender log (/tmp/deltasafe-demo.a8whNb/client.log) ==
+failure logs copied to /tmp/ev2-unbindable

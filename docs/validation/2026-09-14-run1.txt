@@ -1,25 +1,25 @@
 == deltasafe loopback demo ==
 repo:    <repo>
-commit:  bd6614cdc1a0ec719006c8cb0b560c9ee83c233a
+commit:  410c306cf03ceb74167e363a41e3efd2581831f5
 dirty:   0 path(s)
 command: cargo build --locked
     Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.05s
 binary:  <repo>/target/debug/deltasafe
-sha256:  533fc586851b25980f7f0ec58dc07929887968fe2124d5a41c7669dbf6b48da0
-workdir: /var/folders/v1/5g8zpd5j0h56kyw4dn14f_g40000gn/T//deltasafe-demo.TwuqqH
-receiver ready on 127.0.0.1:49779 (pid 10244)
-readiness proof: process alive; log marker 'Receiver listening on 127.0.0.1:49779'; TCP connect accepted
+sha256:  5e613612b64e70e09d5f21a7976bd7a1b6d52ac53c1266af03a7adadca522da6
+workdir: /tmp/deltasafe-demo.SkiFJF
+receiver ready on 127.0.0.1:50954 (pid 22547)
+readiness proof: process alive; log marker 'Receiver listening on 127.0.0.1:50954'; TCP connect accepted
 == wrong password (valid length) ==
 wrong password rejected (sender exit 1); receiver tree has no files or symlinks
 note: receiver tree has directories (allowed by the cleanup contract):
-/var/folders/v1/5g8zpd5j0h56kyw4dn14f_g40000gn/T//deltasafe-demo.TwuqqH/receiver/received_files
+/tmp/deltasafe-demo.SkiFJF/receiver/received_files
 == correct password transfer ==
 verified: empty.bin (0 bytes, sha256 e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855)
 verified: hello.txt (18 bytes, sha256 8865d5a4ef3f8d8a1d90e3d3fea9babd540667a71b264656c720326eed41d9fa)
-verified: nested/large.bin (20000 bytes, sha256 a83b407a7aa33752dc08390786403fdf8ab463a455c57c5cc2b7a7275d1e36dd)
+verified: nested/large.bin (20000 bytes, sha256 21404c5bf1a8cd7734d3b79e33356df3e55dc405242e2630c27ed81a8b64026a)
 receiver inventory matches fixtures exactly
 == stopping receiver ==
 DEMO PASS
-commit:  bd6614cdc1a0ec719006c8cb0b560c9ee83c233a
-binary:  533fc586851b25980f7f0ec58dc07929887968fe2124d5a41c7669dbf6b48da0
+commit:  410c306cf03ceb74167e363a41e3efd2581831f5
+binary:  5e613612b64e70e09d5f21a7976bd7a1b6d52ac53c1266af03a7adadca522da6
 note: loopback only; wrong-password and integrity behaviors are also covered by tests/integration_tests.rs
