@@ -1,0 +1,12 @@
+# Normalize line endings in the repository.
+* text=auto eol=lf
+
+# Rust sources.
+*.rs text linguist-language=Rust
+
+# Build output and the committed lockfile.
+target/ linguist-vendored
+Cargo.lock linguist-generated
+
+# Binary fixtures are not text.
+*.bin binary

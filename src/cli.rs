@@ -44,20 +44,6 @@ pub enum Commands {
         timeout: u64,
     },
 
-    /// Connect to a peer device
-    Connect {
-        /// IP address
-        #[arg(short, long)]
-        ip: String,
-    },
-
-    /// Watch the specified folder and sync changes
-    Watch {
-        /// Folder path
-        #[arg(short, long)]
-        folder: String,
-    },
-
     /// Start the TCP server
     Server {
         /// Server address (IP and port) - optional, defaults to automatic

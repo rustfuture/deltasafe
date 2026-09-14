@@ -1,54 +1,44 @@
 //! Network discovery module
 //!
-//! This module automatically discovers Deltasafe servers on the LAN using
-//! mDNS (Bonjour/Zeroconf) and simple port scanning.
+//! Discovers Deltasafe servers on the local network with a best-effort TCP port scan.
+//! mDNS is not implemented; use an explicit `--target` address when the peer is known.
 
 use anyhow::{Context, Result};
 use std::collections::HashMap;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::time::Duration;
 
-/// mDNS service type for the Deltasafe service
-#[allow(dead_code)] // Allowed for now because the mDNS implementation is not complete yet
-const DELTASAFE_SERVICE_TYPE: &str = "_deltasafe._tcp.local.";
-
 /// Default port range for scanning
 const DEFAULT_PORT_RANGE: std::ops::Range<u16> = 12340..12350;
+
+/// How many hosts of the local /24 the scan sweeps.
+///
+/// A full /24 across [`DEFAULT_PORT_RANGE`] would open thousands of sockets; this keeps the
+/// best-effort scan bounded. Use `--target` for a peer outside this window.
+const SCAN_HOST_LIMIT: usize = 10;
+
+/// Per-connection connect timeout. Shorter than the overall scan budget so that one
+/// unresponsive host does not consume the whole `--timeout` allowance.
+const CONNECT_TIMEOUT: Duration = Duration::from_millis(200);
 
 /// Information about a discovered server
 #[derive(Debug, Clone)]
 pub struct DiscoveredServer {
     pub address: SocketAddr,
     pub name: Option<String>,
-    pub discovery_method: DiscoveryMethod,
 }
 
-#[derive(Debug, Clone)]
-#[allow(dead_code)] // Allowed for now because the mDNS implementation is not complete yet
-pub enum DiscoveryMethod {
-    MDns,
-    PortScan,
-}
-
-/// Discovers Deltasafe servers on the LAN
+/// Discovers Deltasafe servers on the LAN with a best-effort port scan.
+///
+/// This is a heuristic: an open port in [`DEFAULT_PORT_RANGE`] means something is
+/// listening, not that it is a Deltasafe receiver. Results are a convenience, never a
+/// verified peer identity.
 pub async fn discover_servers(timeout_secs: u64) -> Result<Vec<DiscoveredServer>> {
     println!("[🔍] Searching for Deltasafe servers on the LAN...");
 
     let mut servers = Vec::new();
 
-    // 1. Try discovery via mDNS
-    match discover_via_mdns(timeout_secs).await {
-        Ok(mut mdns_servers) => {
-            println!("[📡] Found {} server(s) via mDNS", mdns_servers.len());
-            servers.append(&mut mdns_servers);
-        }
-        Err(e) => {
-            println!("[⚠️] mDNS discovery failed: {}", e);
-        }
-    }
-
-    // 2. Discovery via port scanning
-    match discover_via_port_scan().await {
+    match discover_via_port_scan(timeout_secs).await {
         Ok(mut scan_servers) => {
             println!("[🔎] Found {} server(s) via port scan", scan_servers.len());
             servers.append(&mut scan_servers);
@@ -69,75 +59,62 @@ pub async fn discover_servers(timeout_secs: u64) -> Result<Vec<DiscoveredServer>
             servers.len()
         );
         for (i, server) in servers.iter().enumerate() {
-            println!(
-                "  {}. {} ({:?})",
-                i + 1,
-                server.address,
-                server.discovery_method
-            );
+            println!("  {}. {}", i + 1, server.address);
         }
     }
 
     Ok(servers)
 }
 
-/// Server discovery using mDNS
-async fn discover_via_mdns(_timeout_secs: u64) -> Result<Vec<DiscoveredServer>> {
-    // mDNS is a simple implementation for now; real mDNS is complex
-    println!("[📡] Trying mDNS discovery... (simple implementation)");
-
-    // Return an empty list for now; real mDNS will be added later
-    tokio::time::sleep(Duration::from_millis(100)).await;
-
-    Ok(Vec::new())
-}
-
-/// Server discovery via port scanning
-async fn discover_via_port_scan() -> Result<Vec<DiscoveredServer>> {
+/// Server discovery via port scanning.
+///
+/// The whole sweep is bounded by `timeout_secs`, which is the value the `discover` command
+/// exposes as `--timeout`.
+async fn discover_via_port_scan(timeout_secs: u64) -> Result<Vec<DiscoveredServer>> {
     let local_network = get_local_network_range()?;
-    let mut servers = Vec::new();
+    let budget = timeout_secs.max(1);
 
-    println!("[🔎] Scanning ports on the local network...");
+    println!(
+        "[🔎] Scanning up to {SCAN_HOST_LIMIT} host(s) on the local network with a {budget}s budget..."
+    );
 
-    // Parallel port scan (test only a few IPs to avoid too many)
-    let mut tasks = Vec::new();
-    let ips: Vec<Ipv4Addr> = local_network.iter().take(10).collect(); // First 10 IPs
+    let ips: Vec<Ipv4Addr> = local_network.iter().take(SCAN_HOST_LIMIT).collect();
 
-    for ip in ips {
-        for port in DEFAULT_PORT_RANGE {
-            let addr = SocketAddr::new(IpAddr::V4(ip), port);
-            let task = tokio::spawn(async move { check_deltasafe_server(addr).await });
-            tasks.push(task);
+    let scan = async move {
+        // JoinSet aborts the outstanding probes if the budget below expires.
+        let mut set = tokio::task::JoinSet::new();
+        for ip in ips {
+            for port in DEFAULT_PORT_RANGE {
+                let addr = SocketAddr::new(IpAddr::V4(ip), port);
+                set.spawn(async move { check_deltasafe_server(addr).await });
+            }
         }
-    }
 
-    // Wait for all scans
-    for task in tasks {
-        if let Ok(Some(server)) = task.await {
-            servers.push(server);
+        let mut servers = Vec::new();
+        while let Some(result) = set.join_next().await {
+            if let Ok(Some(server)) = result {
+                servers.push(server);
+            }
         }
-    }
+        servers
+    };
 
-    Ok(servers)
+    match tokio::time::timeout(Duration::from_secs(budget), scan).await {
+        Ok(servers) => Ok(servers),
+        Err(_) => anyhow::bail!("port scan timed out after {budget}s"),
+    }
 }
 
-/// Checks whether a Deltasafe server is present at the given address
+/// Checks whether something is listening at the given address.
+///
+/// An accepted TCP connection is not proof that the peer is a Deltasafe receiver, only that a
+/// port is open; the receiving side still authenticates every frame.
 async fn check_deltasafe_server(addr: SocketAddr) -> Option<DiscoveredServer> {
-    // Use a Tokio TcpStream
-    match tokio::time::timeout(
-        Duration::from_millis(100),
-        tokio::net::TcpStream::connect(addr),
-    )
-    .await
-    {
-        Ok(Ok(_)) => {
-            // Connection succeeded; there is probably a server
-            Some(DiscoveredServer {
-                address: addr,
-                name: None,
-                discovery_method: DiscoveryMethod::PortScan,
-            })
-        }
+    match tokio::time::timeout(CONNECT_TIMEOUT, tokio::net::TcpStream::connect(addr)).await {
+        Ok(Ok(_)) => Some(DiscoveredServer {
+            address: addr,
+            name: None,
+        }),
         _ => None,
     }
 }
@@ -213,17 +190,8 @@ fn deduplicate_servers(servers: Vec<DiscoveredServer>) -> Vec<DiscoveredServer> 
     let mut unique_servers = HashMap::new();
 
     for server in servers {
-        // Merge servers at the same address, preferring mDNS
-        match unique_servers.get(&server.address) {
-            Some(_existing) => {
-                if matches!(server.discovery_method, DiscoveryMethod::MDns) {
-                    unique_servers.insert(server.address, server);
-                }
-            }
-            None => {
-                unique_servers.insert(server.address, server);
-            }
-        }
+        // First result for an address wins.
+        unique_servers.entry(server.address).or_insert(server);
     }
 
     unique_servers.into_values().collect()
@@ -243,12 +211,7 @@ pub fn select_server_interactive(servers: &[DiscoveredServer]) -> Option<&Discov
     // If there are multiple servers, ask the user
     println!("[🔍] Found {} server(s). Please choose one:", servers.len());
     for (i, server) in servers.iter().enumerate() {
-        println!(
-            "  {}. {} ({:?})",
-            i + 1,
-            server.address,
-            server.discovery_method
-        );
+        println!("  {}. {}", i + 1, server.address);
         if let Some(name) = &server.name {
             println!("     Service name: {}", name);
         }
@@ -282,16 +245,11 @@ pub fn select_server_interactive(servers: &[DiscoveredServer]) -> Option<&Discov
 }
 
 /// Selects a server automatically (without user interaction)
+///
+/// The scan has no reliable ordering signal, so this takes the first result. Use `--target`
+/// when the choice of peer matters.
 pub fn select_best_server_auto(servers: &[DiscoveredServer]) -> Option<&DiscoveredServer> {
-    if servers.is_empty() {
-        return None;
-    }
-
-    // Prefer servers found via mDNS; otherwise take the first one
-    let selected = servers
-        .iter()
-        .find(|s| matches!(s.discovery_method, DiscoveryMethod::MDns))
-        .or_else(|| servers.first())?;
+    let selected = servers.first()?;
 
     if servers.len() > 1 {
         println!(
@@ -329,17 +287,16 @@ mod tests {
             DiscoveredServer {
                 address: addr,
                 name: None,
-                discovery_method: DiscoveryMethod::PortScan,
             },
             DiscoveredServer {
                 address: addr,
                 name: Some("test".to_string()),
-                discovery_method: DiscoveryMethod::MDns,
             },
         ];
 
         let unique = deduplicate_servers(servers);
         assert_eq!(unique.len(), 1);
-        assert!(matches!(unique[0].discovery_method, DiscoveryMethod::MDns));
+        // The first result for an address is kept.
+        assert!(unique[0].name.is_none());
     }
 }
