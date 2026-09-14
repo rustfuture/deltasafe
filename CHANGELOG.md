@@ -15,6 +15,10 @@ All notable changes to this project are documented here.
 
 ### Changed
 
+- The validation evidence under `docs/validation/` was regenerated at the current source revision.
+  The earlier captures named revision `bd6614c`, which stopped describing the code once the command
+  surface and discovery changed. The evidence now records `410c306` and the binary it was produced
+  from, and the sanitization also redacts the per-user temporary root.
 - `tests/cli_surface.rs` documents its scope as the parser surface. It previously implied that every
   accepted subcommand was proven to do real work, which parser tests cannot show; integration coverage
   and the loopback harness are where that lives.
