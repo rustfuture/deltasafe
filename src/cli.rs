@@ -2,7 +2,7 @@ use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
 #[command(name = "deltasafe")]
-#[command(about = "AES şifrelemeli LAN dosya senkronizasyon aracı", long_about = None)]
+#[command(about = "LAN file synchronization tool with AES encryption", long_about = None)]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Commands,
@@ -10,65 +10,65 @@ pub struct Cli {
 
 #[derive(Subcommand)]
 pub enum Commands {
-    /// Dosya ya da klasörü senkronize et
+    /// Synchronize a file or directory
     Sync {
-        /// Kaynak dizin
+        /// Source directory
         #[arg(short, long)]
         source: String,
 
-        /// Hedef IP adresi (opsiyonel, --auto ile otomatik keşif)
+        /// Target IP address (optional; use --auto for automatic discovery)
         #[arg(short, long, conflicts_with = "auto")]
         target: Option<String>,
 
-        /// Otomatik sunucu keşfi
+        /// Automatic server discovery
         #[arg(long, conflicts_with = "target")]
         auto: bool,
 
-        /// Birden fazla sunucu bulunursa otomatik seç (kullanıcı etkileşimi olmadan)
+        /// Automatically select when multiple servers are found (without user interaction)
         #[arg(long, requires = "auto")]
         auto_select: bool,
 
-        /// AES anahtarı (hex formatında 32 bayt)
+        /// AES key (32 bytes in hex)
         #[arg(short, long, conflicts_with = "password")]
         key: Option<String>,
 
-        /// Şifre (otomatik olarak AES anahtarına dönüştürülür)
+        /// Password (automatically converted to an AES key)
         #[arg(short, long, conflicts_with = "key")]
         password: Option<String>,
     },
 
-    /// LAN'daki Deltasafe sunucularını keşfet
+    /// Discover Deltasafe servers on the LAN
     Discover {
-        /// Keşif timeout süresi (saniye)
+        /// Discovery timeout in seconds
         #[arg(short, long, default_value = "5")]
         timeout: u64,
     },
 
-    /// Peer cihazla bağlantı kur
+    /// Connect to a peer device
     Connect {
-        /// IP adresi
+        /// IP address
         #[arg(short, long)]
         ip: String,
     },
 
-    /// Belirtilen klasörü izleyerek değişiklikleri sync et
+    /// Watch the specified folder and sync changes
     Watch {
-        /// Klasör yolu
+        /// Folder path
         #[arg(short, long)]
         folder: String,
     },
 
-    /// TCP sunucusunu başlat
+    /// Start the TCP server
     Server {
-        /// Sunucu adresi (IP ve port) - opsiyonel, varsayılan: otomatik
+        /// Server address (IP and port) - optional, defaults to automatic
         #[arg(short, long)]
         address: Option<String>,
 
-        /// AES anahtarı (hex formatında 32 bayt)
+        /// AES key (32 bytes in hex)
         #[arg(short, long, conflicts_with = "password")]
         key: Option<String>,
 
-        /// Şifre (otomatik olarak AES anahtarına dönüştürülür)
+        /// Password (automatically converted to an AES key)
         #[arg(short, long, conflicts_with = "key")]
         password: Option<String>,
     },

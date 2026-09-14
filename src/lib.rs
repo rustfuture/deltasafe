@@ -2,14 +2,14 @@
 //!
 //! Deltasafe is a Rust library for authenticated file transfer on a trusted LAN.
 //!
-//! ## Özellikler
+//! ## Features
 //!
 //! - **AES-256-GCM**: Data and control frames are authenticated.
 //! - **BLAKE3 verification**: A file is published only after its full digest matches.
 //! - **Bounded chunk transfer**: Large files are streamed without loading them into memory.
 //! - **Safe publication**: Incomplete files are temporary and existing destinations are preserved.
 //!
-//! ## Kullanım
+//! ## Usage
 //!
 //! ```rust,no_run
 //! use deltasafe::sync::{start_sync, calculate_file_hash};

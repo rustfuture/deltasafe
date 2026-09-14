@@ -37,7 +37,7 @@ pub(crate) fn derive_session_key(base_key: &[u8; 32], session_id: &[u8; 16]) -> 
     let hkdf = Hkdf::<Sha256>::new(Some(session_id), base_key);
     let mut session_key = [0u8; 32];
     hkdf.expand(b"deltasafe/protocol/v1/session-key", &mut session_key)
-        .map_err(|_| anyhow!("Oturum anahtarı türetilemedi"))?;
+        .map_err(|_| anyhow!("Could not derive the session key"))?;
     Ok(session_key)
 }
 
@@ -66,11 +66,11 @@ pub(crate) fn encrypt_frame(
     plaintext: &[u8],
 ) -> Result<Vec<u8>> {
     if plaintext.len() > CHUNK_SIZE {
-        bail!("Frame verisi sınırı aşıyor: {} bayt", plaintext.len());
+        bail!("Frame payload exceeds the limit: {} bytes", plaintext.len());
     }
 
     let cipher =
-        Aes256Gcm::new_from_slice(session_key).map_err(|_| anyhow!("Geçersiz oturum anahtarı"))?;
+        Aes256Gcm::new_from_slice(session_key).map_err(|_| anyhow!("Invalid session key"))?;
     let nonce_bytes = nonce(direction, index);
     let aad = additional_data(header_bytes, direction, kind, index);
     let ciphertext = cipher
@@ -81,7 +81,7 @@ pub(crate) fn encrypt_frame(
                 aad: &aad,
             },
         )
-        .map_err(|_| anyhow!("Frame şifrelenemedi"))?;
+        .map_err(|_| anyhow!("Could not encrypt frame"))?;
 
     let mut body = Vec::with_capacity(FRAME_METADATA_SIZE + ciphertext.len());
     body.push(kind);
@@ -97,7 +97,7 @@ pub(crate) fn decrypt_frame(
     frame: &EncryptedFrame,
 ) -> Result<Vec<u8>> {
     let cipher =
-        Aes256Gcm::new_from_slice(session_key).map_err(|_| anyhow!("Geçersiz oturum anahtarı"))?;
+        Aes256Gcm::new_from_slice(session_key).map_err(|_| anyhow!("Invalid session key"))?;
     let nonce_bytes = nonce(direction, frame.index);
     let aad = additional_data(header_bytes, direction, frame.kind, frame.index);
     cipher
@@ -108,18 +108,18 @@ pub(crate) fn decrypt_frame(
                 aad: &aad,
             },
         )
-        .map_err(|_| anyhow!("Frame kimlik doğrulaması başarısız"))
+        .map_err(|_| anyhow!("Frame authentication failed"))
 }
 
 pub(crate) fn write_frame(stream: &mut TcpStream, body: &[u8]) -> Result<()> {
     if body.len() > MAX_FRAME_SIZE {
-        bail!("Frame sınırı aşıyor: {} bayt", body.len());
+        bail!("Frame exceeds the limit: {} bytes", body.len());
     }
-    let length = u32::try_from(body.len()).context("Frame uzunluğu u32 sınırını aşıyor")?;
+    let length = u32::try_from(body.len()).context("Frame length exceeds the u32 limit")?;
     stream
         .write_all(&length.to_be_bytes())
-        .context("Frame uzunluğu gönderilemedi")?;
-    stream.write_all(body).context("Frame gönderilemedi")?;
+        .context("Could not send frame length")?;
+    stream.write_all(body).context("Could not send frame")?;
     Ok(())
 }
 
@@ -129,13 +129,13 @@ pub(crate) fn read_frame(stream: &mut TcpStream) -> Result<Option<EncryptedFrame
     };
     let length = length as usize;
     if !(FRAME_METADATA_SIZE + GCM_TAG_SIZE..=MAX_FRAME_SIZE).contains(&length) {
-        bail!("Geçersiz frame boyutu: {length}");
+        bail!("Invalid frame size: {length}");
     }
 
     let mut body = vec![0u8; length];
     stream
         .read_exact(&mut body)
-        .context("Frame eksik veya okunamadı")?;
+        .context("Frame is missing or could not be read")?;
     let kind = body[0];
     let index = u64::from_be_bytes(
         body[1..FRAME_METADATA_SIZE]
@@ -151,15 +151,15 @@ pub(crate) fn read_frame(stream: &mut TcpStream) -> Result<Option<EncryptedFrame
 
 pub(crate) fn write_header(stream: &mut TcpStream, header_bytes: &[u8]) -> Result<()> {
     if header_bytes.is_empty() || header_bytes.len() > MAX_HEADER_SIZE {
-        bail!("Geçersiz başlık boyutu: {}", header_bytes.len());
+        bail!("Invalid header size: {}", header_bytes.len());
     }
-    let length = u32::try_from(header_bytes.len()).context("Başlık çok büyük")?;
+    let length = u32::try_from(header_bytes.len()).context("Header is too large")?;
     stream
         .write_all(&length.to_be_bytes())
-        .context("Başlık uzunluğu gönderilemedi")?;
+        .context("Could not send header length")?;
     stream
         .write_all(header_bytes)
-        .context("Başlık gönderilemedi")?;
+        .context("Could not send header")?;
     Ok(())
 }
 
@@ -169,24 +169,26 @@ pub(crate) fn read_header_bytes(stream: &mut TcpStream) -> Result<Option<Vec<u8>
     };
     let length = length as usize;
     if !(1..=MAX_HEADER_SIZE).contains(&length) {
-        bail!("Geçersiz başlık boyutu: {length}");
+        bail!("Invalid header size: {length}");
     }
     let mut bytes = vec![0u8; length];
     stream
         .read_exact(&mut bytes)
-        .context("Başlık eksik veya okunamadı")?;
+        .context("Header is missing or could not be read")?;
     Ok(Some(bytes))
 }
 
 fn read_length_prefix(stream: &mut TcpStream) -> Result<Option<u32>> {
     let mut bytes = [0u8; 4];
-    let first = stream.read(&mut bytes[..1]).context("Uzunluk okunamadı")?;
+    let first = stream
+        .read(&mut bytes[..1])
+        .context("Could not read length")?;
     if first == 0 {
         return Ok(None);
     }
     stream
         .read_exact(&mut bytes[1..])
-        .context("Uzunluk alanı yarıda kesildi")?;
+        .context("Length field was truncated")?;
     Ok(Some(u32::from_be_bytes(bytes)))
 }
 

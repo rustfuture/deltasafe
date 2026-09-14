@@ -2,7 +2,7 @@
 
 `deltasafe` is a Rust command-line tool for authenticated file transfer over a trusted LAN. A sender streams regular files from a directory to a receiver; the receiver validates every encrypted frame, verifies the complete BLAKE3 digest, and publishes each file only after successful verification.
 
-This is a pre-1.0 portfolio project. The supported scope and security boundaries are intentionally explicit.
+This is a pre-1.0 portfolio project. The supported scope and security boundaries are intentionally explicit. See [CHANGELOG.md](CHANGELOG.md) for the change history.
 
 ## What is implemented
 

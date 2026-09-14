@@ -1,21 +1,21 @@
-//! Ağ keşif modülü
+//! Network discovery module
 //!
-//! Bu modül LAN üzerindeki Deltasafe sunucularını otomatik olarak keşfetmek için
-//! mDNS (Bonjour/Zeroconf) ve basit port tarama yöntemlerini kullanır.
+//! This module automatically discovers Deltasafe servers on the LAN using
+//! mDNS (Bonjour/Zeroconf) and simple port scanning.
 
 use anyhow::{Context, Result};
 use std::collections::HashMap;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::time::Duration;
 
-/// Deltasafe servisi için mDNS service type
-#[allow(dead_code)] // mDNS implementasyonu henüz tamamlanmadığı için şimdilik izin veriliyor
+/// mDNS service type for the Deltasafe service
+#[allow(dead_code)] // Allowed for now because the mDNS implementation is not complete yet
 const DELTASAFE_SERVICE_TYPE: &str = "_deltasafe._tcp.local.";
 
-/// Varsayılan port aralığı tarama için
+/// Default port range for scanning
 const DEFAULT_PORT_RANGE: std::ops::Range<u16> = 12340..12350;
 
-/// Keşfedilen sunucu bilgisi
+/// Information about a discovered server
 #[derive(Debug, Clone)]
 pub struct DiscoveredServer {
     pub address: SocketAddr,
@@ -24,47 +24,50 @@ pub struct DiscoveredServer {
 }
 
 #[derive(Debug, Clone)]
-#[allow(dead_code)] // mDNS implementasyonu henüz tamamlanmadığı için şimdilik izin veriliyor
+#[allow(dead_code)] // Allowed for now because the mDNS implementation is not complete yet
 pub enum DiscoveryMethod {
     MDns,
     PortScan,
 }
 
-/// LAN'daki Deltasafe sunucularını keşfeder
+/// Discovers Deltasafe servers on the LAN
 pub async fn discover_servers(timeout_secs: u64) -> Result<Vec<DiscoveredServer>> {
-    println!("[🔍] LAN'da Deltasafe sunucuları aranıyor...");
+    println!("[🔍] Searching for Deltasafe servers on the LAN...");
 
     let mut servers = Vec::new();
 
-    // 1. mDNS ile keşif dene
+    // 1. Try discovery via mDNS
     match discover_via_mdns(timeout_secs).await {
         Ok(mut mdns_servers) => {
-            println!("[📡] mDNS ile {} sunucu bulundu", mdns_servers.len());
+            println!("[📡] Found {} server(s) via mDNS", mdns_servers.len());
             servers.append(&mut mdns_servers);
         }
         Err(e) => {
-            println!("[⚠️] mDNS keşfi başarısız: {}", e);
+            println!("[⚠️] mDNS discovery failed: {}", e);
         }
     }
 
-    // 2. Port tarama ile keşif
+    // 2. Discovery via port scanning
     match discover_via_port_scan().await {
         Ok(mut scan_servers) => {
-            println!("[🔎] Port tarama ile {} sunucu bulundu", scan_servers.len());
+            println!("[🔎] Found {} server(s) via port scan", scan_servers.len());
             servers.append(&mut scan_servers);
         }
         Err(e) => {
-            println!("[⚠️] Port tarama başarısız: {}", e);
+            println!("[⚠️] Port scan failed: {}", e);
         }
     }
 
-    // Duplikatları temizle
+    // Remove duplicates
     servers = deduplicate_servers(servers);
 
     if servers.is_empty() {
-        println!("[ℹ️] Hiç sunucu bulunamadı. Manuel IP:port belirtmeyi deneyin.");
+        println!("[ℹ️] No servers found. Try specifying IP:port manually.");
     } else {
-        println!("[✅] Toplam {} benzersiz sunucu keşfedildi", servers.len());
+        println!(
+            "[✅] Discovered {} unique server(s) in total",
+            servers.len()
+        );
         for (i, server) in servers.iter().enumerate() {
             println!(
                 "  {}. {} ({:?})",
@@ -78,27 +81,27 @@ pub async fn discover_servers(timeout_secs: u64) -> Result<Vec<DiscoveredServer>
     Ok(servers)
 }
 
-/// mDNS kullanarak sunucu keşfi
+/// Server discovery using mDNS
 async fn discover_via_mdns(_timeout_secs: u64) -> Result<Vec<DiscoveredServer>> {
-    // mDNS şimdilik basit implementasyon - gerçek mDNS karmaşık
-    println!("[📡] mDNS keşfi deneniyor... (basit implementasyon)");
+    // mDNS is a simple implementation for now; real mDNS is complex
+    println!("[📡] Trying mDNS discovery... (simple implementation)");
 
-    // Şimdilik boş liste döndür, gelecekte gerçek mDNS eklenecek
+    // Return an empty list for now; real mDNS will be added later
     tokio::time::sleep(Duration::from_millis(100)).await;
 
     Ok(Vec::new())
 }
 
-/// Port tarama ile sunucu keşfi
+/// Server discovery via port scanning
 async fn discover_via_port_scan() -> Result<Vec<DiscoveredServer>> {
     let local_network = get_local_network_range()?;
     let mut servers = Vec::new();
 
-    println!("[🔎] Yerel ağda port taraması yapılıyor...");
+    println!("[🔎] Scanning ports on the local network...");
 
-    // Paralel port tarama (sadece birkaç IP test et, çok fazla olmasın)
+    // Parallel port scan (test only a few IPs to avoid too many)
     let mut tasks = Vec::new();
-    let ips: Vec<Ipv4Addr> = local_network.iter().take(10).collect(); // İlk 10 IP
+    let ips: Vec<Ipv4Addr> = local_network.iter().take(10).collect(); // First 10 IPs
 
     for ip in ips {
         for port in DEFAULT_PORT_RANGE {
@@ -108,7 +111,7 @@ async fn discover_via_port_scan() -> Result<Vec<DiscoveredServer>> {
         }
     }
 
-    // Tüm taramaları bekle
+    // Wait for all scans
     for task in tasks {
         if let Ok(Some(server)) = task.await {
             servers.push(server);
@@ -118,9 +121,9 @@ async fn discover_via_port_scan() -> Result<Vec<DiscoveredServer>> {
     Ok(servers)
 }
 
-/// Belirli bir adreste Deltasafe sunucusu olup olmadığını kontrol eder
+/// Checks whether a Deltasafe server is present at the given address
 async fn check_deltasafe_server(addr: SocketAddr) -> Option<DiscoveredServer> {
-    // Tokio TcpStream kullan
+    // Use a Tokio TcpStream
     match tokio::time::timeout(
         Duration::from_millis(100),
         tokio::net::TcpStream::connect(addr),
@@ -128,7 +131,7 @@ async fn check_deltasafe_server(addr: SocketAddr) -> Option<DiscoveredServer> {
     .await
     {
         Ok(Ok(_)) => {
-            // Bağlantı başarılı, muhtemelen bir sunucu var
+            // Connection succeeded; there is probably a server
             Some(DiscoveredServer {
                 address: addr,
                 name: None,
@@ -139,30 +142,32 @@ async fn check_deltasafe_server(addr: SocketAddr) -> Option<DiscoveredServer> {
     }
 }
 
-/// Yerel ağ IP aralığını bulur
+/// Finds the local network IP range
 fn get_local_network_range() -> Result<NetworkRange> {
     use std::net::UdpSocket;
 
-    // Yerel IP'yi bul
-    let socket = UdpSocket::bind("0.0.0.0:0").context("UDP socket oluşturulamadı")?;
+    // Find the local IP
+    let socket = UdpSocket::bind("0.0.0.0:0").context("Could not create UDP socket")?;
     socket
         .connect("8.8.8.8:80")
-        .context("Test bağlantısı kurulamadı")?;
-    let local_addr = socket.local_addr().context("Yerel adres alınamadı")?;
+        .context("Could not establish a test connection")?;
+    let local_addr = socket
+        .local_addr()
+        .context("Could not get the local address")?;
 
     if let IpAddr::V4(local_ip) = local_addr.ip() {
-        // /24 subnet varsay (255.255.255.0)
+        // Assume a /24 subnet (255.255.255.0)
         let octets = local_ip.octets();
         let network_base = Ipv4Addr::new(octets[0], octets[1], octets[2], 1);
         let network_end = Ipv4Addr::new(octets[0], octets[1], octets[2], 254);
 
         Ok(NetworkRange::new(network_base, network_end))
     } else {
-        anyhow::bail!("IPv6 henüz desteklenmiyor")
+        anyhow::bail!("IPv6 is not supported yet")
     }
 }
 
-/// IP aralığı için iterator
+/// Iterator over an IP range
 struct NetworkRange {
     current: u32,
     end: u32,
@@ -203,12 +208,12 @@ impl Iterator for NetworkRangeIter {
     }
 }
 
-/// Duplikat sunucuları temizler
+/// Removes duplicate servers
 fn deduplicate_servers(servers: Vec<DiscoveredServer>) -> Vec<DiscoveredServer> {
     let mut unique_servers = HashMap::new();
 
     for server in servers {
-        // Aynı adresteki sunucuları birleştir, mDNS'i tercih et
+        // Merge servers at the same address, preferring mDNS
         match unique_servers.get(&server.address) {
             Some(_existing) => {
                 if matches!(server.discovery_method, DiscoveryMethod::MDns) {
@@ -224,22 +229,19 @@ fn deduplicate_servers(servers: Vec<DiscoveredServer>) -> Vec<DiscoveredServer> 
     unique_servers.into_values().collect()
 }
 
-/// Kullanıcıya sunucu seçimi yaptırır
+/// Prompts the user to choose a server
 pub fn select_server_interactive(servers: &[DiscoveredServer]) -> Option<&DiscoveredServer> {
     if servers.is_empty() {
         return None;
     }
 
     if servers.len() == 1 {
-        println!("[✅] Tek sunucu bulundu: {}", servers[0].address);
+        println!("[✅] Found a single server: {}", servers[0].address);
         return Some(&servers[0]);
     }
 
-    // Birden fazla sunucu varsa kullanıcıya sor
-    println!(
-        "[🔍] {} sunucu bulundu. Lütfen birini seçin:",
-        servers.len()
-    );
+    // If there are multiple servers, ask the user
+    println!("[🔍] Found {} server(s). Please choose one:", servers.len());
     for (i, server) in servers.iter().enumerate() {
         println!(
             "  {}. {} ({:?})",
@@ -248,13 +250,13 @@ pub fn select_server_interactive(servers: &[DiscoveredServer]) -> Option<&Discov
             server.discovery_method
         );
         if let Some(name) = &server.name {
-            println!("     Servis adı: {}", name);
+            println!("     Service name: {}", name);
         }
     }
 
-    // Kullanıcı girişi al
+    // Read user input
     loop {
-        print!("Seçiminiz (1-{}): ", servers.len());
+        print!("Your choice (1-{}): ", servers.len());
         use std::io::{self, Write};
         io::stdout().flush().unwrap();
 
@@ -263,29 +265,29 @@ pub fn select_server_interactive(servers: &[DiscoveredServer]) -> Option<&Discov
             Ok(_) => {
                 if let Ok(choice) = input.trim().parse::<usize>() {
                     if choice >= 1 && choice <= servers.len() {
-                        println!("[✅] {} seçildi", servers[choice - 1].address);
+                        println!("[✅] Selected {}", servers[choice - 1].address);
                         return Some(&servers[choice - 1]);
                     }
                 }
                 println!(
-                    "[⚠️] Geçersiz seçim. 1-{} arası bir sayı girin.",
+                    "[⚠️] Invalid choice. Enter a number between 1 and {}.",
                     servers.len()
                 );
             }
             Err(_) => {
-                println!("[⚠️] Giriş hatası. Tekrar deneyin.");
+                println!("[⚠️] Input error. Please try again.");
             }
         }
     }
 }
 
-/// Otomatik sunucu seçer (kullanıcı etkileşimi olmadan)
+/// Selects a server automatically (without user interaction)
 pub fn select_best_server_auto(servers: &[DiscoveredServer]) -> Option<&DiscoveredServer> {
     if servers.is_empty() {
         return None;
     }
 
-    // mDNS ile bulunanları tercih et, yoksa ilkini al
+    // Prefer servers found via mDNS; otherwise take the first one
     let selected = servers
         .iter()
         .find(|s| matches!(s.discovery_method, DiscoveryMethod::MDns))
@@ -293,11 +295,11 @@ pub fn select_best_server_auto(servers: &[DiscoveredServer]) -> Option<&Discover
 
     if servers.len() > 1 {
         println!(
-            "[ℹ️] {} sunucu bulundu, otomatik olarak {} seçildi",
+            "[ℹ️] Found {} server(s); automatically selected {}",
             servers.len(),
             selected.address
         );
-        println!("[💡] Tüm sunucuları görmek için 'deltasafe discover' komutunu kullanın");
+        println!("[💡] Use the 'deltasafe discover' command to see all servers");
     }
 
     Some(selected)
