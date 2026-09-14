@@ -1,0 +1,15 @@
+== deltasafe loopback demo ==
+repo:    <repo>
+commit:  bd6614cdc1a0ec719006c8cb0b560c9ee83c233a
+dirty:   0 path(s)
+command: cargo build --locked
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.05s
+binary:  <repo>/target/debug/deltasafe
+sha256:  533fc586851b25980f7f0ec58dc07929887968fe2124d5a41c7669dbf6b48da0
+workdir: /var/folders/v1/5g8zpd5j0h56kyw4dn14f_g40000gn/T//deltasafe-demo.1FpVJn
+FAIL: receiver exited before becoming ready
+== failure evidence: receiver log (/var/folders/v1/5g8zpd5j0h56kyw4dn14f_g40000gn/T//deltasafe-demo.1FpVJn/server.log) ==
+Starting server: 127.0.0.1:49777
+[❌] Error: Could not bind receiver to 127.0.0.1:49777
+== failure evidence: sender log (/var/folders/v1/5g8zpd5j0h56kyw4dn14f_g40000gn/T//deltasafe-demo.1FpVJn/client.log) ==
+failure logs copied to /tmp/ev-occupied
