@@ -82,16 +82,25 @@ This matches the implementation contract:
 
 Both controlled startup failures exited non-zero and preserved raw logs:
 
-- Unbindable address `192.0.2.1:12345` (`2026-09-11-negative-unbindable.txt`): receiver logged
+- Unbindable address `192.0.2.1:12345`: the receiver logged
   `Could not bind receiver to 192.0.2.1:12345`, the harness reported
   `FAIL: receiver exited before becoming ready`, and exited 1.
-- Genuinely occupied port (`2026-09-11-negative-occupied-port.txt`): a separate python listener held
-  the port; the receiver logged `Could not bind receiver to 127.0.0.1:<port>`, the harness exited 1,
-  and the holder process was still alive afterwards (checked with `kill -0`), proving the harness only
-  terminates processes it started.
+- Genuinely occupied port: a separate python listener held the port; the receiver logged
+  `Could not bind receiver to 127.0.0.1:<port>`, the harness exited 1, and the holder process was
+  still alive afterwards (checked with `kill -0`), proving the harness only terminates processes it
+  started.
 
-Raw failure logs are printed before cleanup and copied to `DELTASAFE_DEMO_EVIDENCE_DIR` when set; the
-preserved receiver logs are included as `2026-09-11-negative-*-server.log`.
+Raw failure logs are printed before cleanup and copied to `DELTASAFE_DEMO_EVIDENCE_DIR` when set.
+
+The negative-scenario captures from this date contained the Turkish startup line the binary printed
+before the command surface was translated. They were regenerated on 2026-09-14 against the current
+source, and the regenerated files are the current evidence:
+
+- `2026-09-14-negative-unbindable.txt` and `2026-09-14-negative-unbindable-server.log`
+- `2026-09-14-negative-occupied-port.txt` and `2026-09-14-negative-occupied-port-server.log`
+
+See [2026-09-14-english-cli.md](2026-09-14-english-cli.md) for the identity, commands, and output of
+those runs.
 
 ## Evidence hygiene
 
