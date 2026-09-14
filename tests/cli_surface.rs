@@ -51,6 +51,16 @@ fn help_lists_only_implemented_commands() {
 }
 
 #[test]
+fn version_matches_the_package() {
+    let version = parse_error(&["--version"]);
+    assert_eq!(version.kind(), clap::error::ErrorKind::DisplayVersion);
+    assert!(
+        version.to_string().contains(env!("CARGO_PKG_VERSION")),
+        "--version should report the package version"
+    );
+}
+
+#[test]
 fn sync_is_accepted() {
     let cli = parse_ok(&["sync", "--source", "./fixtures"]);
     assert!(matches!(cli.command, Commands::Sync { .. }));
