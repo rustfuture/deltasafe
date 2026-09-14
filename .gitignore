@@ -1,4 +1,11 @@
 /target
 
-# PRD dosyasi - GitHub'a gonderilmesin
+# Local PRD draft, not published.
 PRD_Deltasafe.md
+
+# Runtime receive directory created by the receiver.
+received_files/
+
+# Ad-hoc local transfer fixtures.
+test_data/
+test-folder/

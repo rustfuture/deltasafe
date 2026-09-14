@@ -10,7 +10,7 @@ async fn main() {
     let cli = Cli::parse();
 
     if let Err(e) = run_command(&cli.command).await {
-        eprintln!("[❌] Hata: {}", e);
+        eprintln!("[❌] Error: {}", e);
         std::process::exit(1);
     }
 }
@@ -27,7 +27,7 @@ async fn run_command(command: &Commands) -> Result<()> {
         } => {
             let target_address =
                 utils::resolve_target_address(target.as_deref(), *auto, *auto_select).await?;
-            println!("Sync başlatılıyor: {} -> {}", source, target_address);
+            println!("Starting sync: {} -> {}", source, target_address);
 
             let resolved =
                 utils::resolve_key(key.as_deref(), password.as_deref(), KeyRole::Client)?;
@@ -36,9 +36,9 @@ async fn run_command(command: &Commands) -> Result<()> {
         Commands::Discover { timeout } => {
             let servers = deltasafe::discovery::discover_servers(*timeout).await?;
             if servers.is_empty() {
-                println!("[ℹ️] Hiç sunucu bulunamadı.");
+                println!("[ℹ️] No servers found.");
             } else {
-                println!("[✅] Bulunan sunucular:");
+                println!("[✅] Discovered servers:");
                 for (i, server) in servers.iter().enumerate() {
                     println!(
                         "  {}. {} ({:?})",
@@ -47,18 +47,18 @@ async fn run_command(command: &Commands) -> Result<()> {
                         server.discovery_method
                     );
                     if let Some(name) = &server.name {
-                        println!("     Servis adı: {}", name);
+                        println!("     Service name: {}", name);
                     }
                 }
             }
         }
         Commands::Connect { ip } => {
-            println!("Peer cihaza bağlanılıyor: {}", ip);
-            println!("⚠️ Bu özellik henüz geliştirilme aşamasındadır.");
+            println!("Connecting to peer device: {}", ip);
+            println!("⚠️ This feature is still under development.");
         }
         Commands::Watch { folder } => {
-            println!("Klasör izleniyor: {}", folder);
-            println!("⚠️ Bu özellik henüz geliştirilme aşamasındadır.");
+            println!("Watching folder: {}", folder);
+            println!("⚠️ This feature is still under development.");
         }
         Commands::Server {
             address,
@@ -66,7 +66,7 @@ async fn run_command(command: &Commands) -> Result<()> {
             password,
         } => {
             let server_address = utils::resolve_server_address(address.as_deref())?;
-            println!("Sunucu başlatılıyor: {}", server_address);
+            println!("Starting server: {}", server_address);
 
             let resolved =
                 utils::resolve_key(key.as_deref(), password.as_deref(), KeyRole::Server)?;

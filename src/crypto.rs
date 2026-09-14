@@ -1,36 +1,36 @@
-//! Kriptografik yardımcı fonksiyonlar
+//! Cryptographic helper functions
 //!
-//! Bu modül şifreleme anahtarı türetme ve doğrulama işlemlerini içerir.
+//! This module contains encryption key derivation and validation operations.
 
 use anyhow::{Context, Result};
 use pbkdf2::pbkdf2_hmac;
 use sha2::Sha256;
 
-/// PBKDF2 iterasyon sayısı (güvenlik için yeterli)
+/// PBKDF2 iteration count (sufficient for security)
 const PBKDF2_ITERATIONS: u32 = 100_000;
 
-/// Salt uzunluğu (128 bit)
+/// Salt length (128 bits)
 const SALT_LENGTH: usize = 16;
 
-/// Varsayılan salt (production'da rastgele olmalı, şimdilik sabit)
+/// Default salt (should be random in production; fixed for now)
 const DEFAULT_SALT: &[u8] = b"deltasafe_salt16";
 
-/// Şifreden AES-256 anahtarı türetir
+/// Derives an AES-256 key from a password
 ///
 /// # Arguments
-/// * `password` - Kullanıcı şifresi
-/// * `salt` - Opsiyonel salt (None ise varsayılan kullanılır)
+/// * `password` - User password
+/// * `salt` - Optional salt (the default is used when `None`)
 ///
 /// # Returns
-/// 32 baytlık AES anahtarı
+/// A 32-byte AES key
 pub fn derive_key_from_password(password: &str, salt: Option<&[u8]>) -> Result<[u8; 32]> {
     if password.len() < 8 {
-        anyhow::bail!("Şifre en az 8 karakter olmalıdır");
+        anyhow::bail!("Password must be at least 8 characters long");
     }
 
     let salt = salt.unwrap_or(DEFAULT_SALT);
     if salt.len() != SALT_LENGTH {
-        anyhow::bail!("Salt {} bayt uzunluğunda olmalıdır", SALT_LENGTH);
+        anyhow::bail!("Salt must be {} bytes long", SALT_LENGTH);
     }
 
     let mut key = [0u8; 32];
@@ -39,42 +39,42 @@ pub fn derive_key_from_password(password: &str, salt: Option<&[u8]>) -> Result<[
     Ok(key)
 }
 
-/// Hex string'i 32 baytlık anahtara çevirir
+/// Converts a hex string into a 32-byte key
 pub fn parse_hex_key(hex_key: &str) -> Result<[u8; 32]> {
     if hex_key.len() != 64 {
-        anyhow::bail!("Hex anahtar 64 karakter uzunluğunda olmalıdır (32 bayt)");
+        anyhow::bail!("Hex key must be 64 characters long (32 bytes)");
     }
 
-    let decoded = hex::decode(hex_key).context("Geçersiz hex formatı")?;
+    let decoded = hex::decode(hex_key).context("Invalid hex format")?;
 
     let key: [u8; 32] = decoded
         .try_into()
-        .map_err(|_| anyhow::anyhow!("Anahtar 32 bayt uzunluğunda olmalıdır"))?;
+        .map_err(|_| anyhow::anyhow!("Key must be 32 bytes long"))?;
 
     Ok(key)
 }
 
-/// Şifre güçlülüğünü kontrol eder
+/// Checks password strength
 pub fn validate_password_strength(password: &str) -> Result<()> {
     if password.len() < 8 {
-        anyhow::bail!("Şifre en az 8 karakter olmalıdır");
+        anyhow::bail!("Password must be at least 8 characters long");
     }
 
     if password.len() > 128 {
-        anyhow::bail!("Şifre en fazla 128 karakter olabilir");
+        anyhow::bail!("Password must be at most 128 characters long");
     }
 
     let has_letter = password.chars().any(|c| c.is_alphabetic());
     let has_digit = password.chars().any(|c| c.is_numeric());
 
     if !has_letter || !has_digit {
-        println!("⚠️  Güvenlik önerisi: Şifrenizde hem harf hem rakam bulunması önerilir");
+        println!("⚠️  Security tip: Use both letters and digits in your password");
     }
 
     Ok(())
 }
 
-/// Rastgele PBKDF2 salt üretir
+/// Generates a random PBKDF2 salt
 pub fn generate_random_salt() -> [u8; SALT_LENGTH] {
     use rand::Rng;
     let mut salt = [0u8; SALT_LENGTH];
@@ -82,7 +82,7 @@ pub fn generate_random_salt() -> [u8; SALT_LENGTH] {
     salt
 }
 
-/// Rastgele hex anahtar üretir
+/// Generates a random hex key
 pub fn generate_random_hex_key() -> String {
     use rand::Rng;
     let mut key = [0u8; 32];
@@ -100,7 +100,7 @@ mod tests {
         let key1 = derive_key_from_password(password, None).unwrap();
         let key2 = derive_key_from_password(password, None).unwrap();
 
-        // Aynı şifre aynı anahtarı üretmeli
+        // The same password must produce the same key
         assert_eq!(key1, key2);
         assert_eq!(key1.len(), 32);
     }
@@ -110,19 +110,19 @@ mod tests {
         let key1 = derive_key_from_password("password1", None).unwrap();
         let key2 = derive_key_from_password("password2", None).unwrap();
 
-        // Farklı şifreler farklı anahtarlar üretmeli
+        // Different passwords must produce different keys
         assert_ne!(key1, key2);
     }
 
     #[test]
     fn test_password_validation() {
-        // Çok kısa şifre
+        // Too short password
         assert!(derive_key_from_password("123", None).is_err());
 
-        // Geçerli şifre
+        // Valid password
         assert!(derive_key_from_password("password123", None).is_ok());
 
-        // Şifre güçlülük kontrolü
+        // Password strength check
         assert!(validate_password_strength("password123").is_ok());
         assert!(validate_password_strength("123").is_err());
     }
@@ -133,10 +133,10 @@ mod tests {
         let key = parse_hex_key(hex_key).unwrap();
         assert_eq!(key.len(), 32);
 
-        // Geçersiz hex
+        // Invalid hex
         assert!(parse_hex_key("invalid_hex").is_err());
 
-        // Yanlış uzunluk
+        // Wrong length
         assert!(parse_hex_key("0123456789abcdef").is_err());
     }
 
@@ -147,9 +147,9 @@ mod tests {
 
         assert_eq!(key1.len(), 64);
         assert_eq!(key2.len(), 64);
-        assert_ne!(key1, key2); // Rastgele anahtarlar farklı olmalı
+        assert_ne!(key1, key2); // Random keys must differ
 
-        // Üretilen anahtarın parse edilebilir olduğunu kontrol et
+        // Check that the generated key is parseable
         assert!(parse_hex_key(&key1).is_ok());
     }
 }
