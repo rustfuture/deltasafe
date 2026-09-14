@@ -4,6 +4,8 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-09-14
+
 ### Added
 
 - Bounded, authenticated AES-256-GCM transfer frames with a per-file HKDF session key.
