@@ -4,6 +4,13 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-09-14
+
+### Fixed
+
+- The crate version now matches the published release tag, and the CLI exposes that version through
+  `--version`.
+
 ### Changed
 
 - `AGENTS.md` is now `CONTRIBUTING.md`. The content was always contributor guidance — build commands,
