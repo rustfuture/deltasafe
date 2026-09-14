@@ -104,10 +104,13 @@ those runs.
 
 ## Evidence hygiene
 
-The raw harness transcripts were copied here verbatim except for one substitution applied to every
+The raw harness transcripts were copied here verbatim except for two substitutions applied to every
 evidence file: this machine's absolute repository path was replaced with `<repo>` (and any remaining
-`/Users/<user>` prefix with `/Users/<redacted>`). No commands, exit codes, hashes, or log text were
-otherwise changed. No credentials, keys, or tokens appear in any evidence file.
+`/Users/<user>` prefix with `/Users/<redacted>`), and the per-user temporary root under
+`/var/folders/…/T/` was replaced with `/tmp/`. The second substitution was added on 2026-09-14, when
+review pointed out that macOS embeds a machine-specific identifier in that path — the same class of
+local-environment trace the first substitution already removed. It changes no command, exit code,
+hash, or log text. No credentials, keys, or tokens appear in any evidence file.
 
 ## Boundaries
 
