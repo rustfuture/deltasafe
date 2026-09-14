@@ -87,10 +87,7 @@ pub async fn resolve_target_address(
                 select_server_interactive(&servers).context("Server selection was cancelled")?
             };
 
-            println!(
-                "[✅] Selected server: {} ({:?})",
-                selected_server.address, selected_server.discovery_method
-            );
+            println!("[✅] Selected server: {}", selected_server.address);
             Ok(selected_server.address.to_string())
         }
         (None, false) => {

@@ -40,25 +40,12 @@ async fn run_command(command: &Commands) -> Result<()> {
             } else {
                 println!("[✅] Discovered servers:");
                 for (i, server) in servers.iter().enumerate() {
-                    println!(
-                        "  {}. {} ({:?})",
-                        i + 1,
-                        server.address,
-                        server.discovery_method
-                    );
+                    println!("  {}. {}", i + 1, server.address);
                     if let Some(name) = &server.name {
                         println!("     Service name: {}", name);
                     }
                 }
             }
-        }
-        Commands::Connect { ip } => {
-            println!("Connecting to peer device: {}", ip);
-            println!("⚠️ This feature is still under development.");
-        }
-        Commands::Watch { folder } => {
-            println!("Watching folder: {}", folder);
-            println!("⚠️ This feature is still under development.");
         }
         Commands::Server {
             address,
