@@ -4,6 +4,12 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+### Changed
+
+- `AGENTS.md` is now `CONTRIBUTING.md`. The content was always contributor guidance — build commands,
+  the review baseline, and environment notes — so it belongs under the name GitHub surfaces for that
+  purpose, alongside the sibling projects.
+
 ## [0.1.1] - 2026-09-14
 
 ### Fixed
