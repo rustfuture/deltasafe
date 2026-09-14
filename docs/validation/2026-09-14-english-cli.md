@@ -19,7 +19,9 @@ below. Evidence that describes a superseded revision is not evidence for the cur
 
 - Host: macOS Apple Silicon (darwin arm64)
 - Toolchain: `rustc 1.94.1 (e408947bf 2026-03-25)` / `cargo 1.94.1 (29ea6fb6a 2026-03-24)`
-- Source revision: `410c306cf03ceb74167e363a41e3efd2581831f5`
+- Source revision: `410c306cf03ceb74167e363a41e3efd2581831f5` — the last commit that changed `src/`,
+  `tests/`, or `Cargo.*`. Every later commit on this branch touches only documentation and
+  changelogs, so the tested code is unchanged.
 - Built binary SHA-256: `5e613612b64e70e09d5f21a7976bd7a1b6d52ac53c1266af03a7adadca522da6`
 - Network: ephemeral loopback TCP listeners only
 - Working tree at capture time: `dirty: 0 path(s)`
