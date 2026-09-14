@@ -1,3 +1,4 @@
+use deltasafe::crypto::parse_hex_key;
 use deltasafe::sync::{calculate_file_hash, FileHeader, CHUNK_SIZE};
 use std::fs;
 use std::path::Path;
@@ -6,43 +7,57 @@ use std::path::Path;
 mod tests {
     use super::*;
 
+    /// Write `contents` to a uniquely named file inside `dir`.
+    fn fixture(dir: &Path, name: &str, contents: &[u8]) -> std::path::PathBuf {
+        let path = dir.join(name);
+        fs::write(&path, contents).unwrap();
+        path
+    }
+
     #[test]
     fn test_file_hash_calculation() {
-        // Create a test file
-        let test_file = "tmp_rovodev_test_hash.txt";
-        fs::write(test_file, "Test content for hash").unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        let test_file = fixture(dir.path(), "hash.txt", b"Test content for hash");
 
-        // Compute the hash
-        let hash = calculate_file_hash(Path::new(test_file)).unwrap();
+        let hash = calculate_file_hash(&test_file).unwrap();
 
-        // Check that the hash has the correct length
-        assert_eq!(hash.len(), 64); // A BLAKE3 hex string is 64 characters
+        // A BLAKE3 hex string is 64 characters.
+        assert_eq!(hash.len(), 64);
+        assert!(hash.chars().all(|c| c.is_ascii_hexdigit()));
 
-        // Check that the same content produces the same hash
-        let hash2 = calculate_file_hash(Path::new(test_file)).unwrap();
+        // The same content produces the same hash.
+        let hash2 = calculate_file_hash(&test_file).unwrap();
         assert_eq!(hash, hash2);
+    }
 
-        // Cleanup
-        fs::remove_file(test_file).unwrap();
+    #[test]
+    fn test_different_file_contents_different_hashes() {
+        let dir = tempfile::tempdir().unwrap();
+        let file1 = fixture(dir.path(), "one.txt", b"Content 1");
+        let file2 = fixture(dir.path(), "two.txt", b"Content 2");
+
+        assert_ne!(
+            calculate_file_hash(&file1).unwrap(),
+            calculate_file_hash(&file2).unwrap()
+        );
     }
 
     #[test]
     fn test_hex_key_validation() {
-        // Valid key
-        let valid_key = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
-        assert_eq!(valid_key.len(), 64);
+        // Exercise the application's own validator rather than the `hex` crate directly.
+        let valid = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+        assert_eq!(parse_hex_key(valid).unwrap().len(), 32);
 
-        // Hex decode test
-        let decoded = hex::decode(valid_key).unwrap();
-        assert_eq!(decoded.len(), 32);
-
-        // Invalid key (too short)
-        let invalid_key = "0123456789abcdef";
-        assert_eq!(invalid_key.len(), 16); // Too short
-
-        // Invalid key (not hex)
-        let non_hex_key = "gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg";
-        assert!(hex::decode(non_hex_key).is_err());
+        // Too short.
+        assert!(parse_hex_key("0123456789abcdef").is_err());
+        // Correct length, but not hexadecimal.
+        let non_hex = "g".repeat(64);
+        assert!(parse_hex_key(&non_hex).is_err());
+        // Empty.
+        assert!(parse_hex_key("").is_err());
+        // A generated key must round-trip through the validator.
+        let generated = deltasafe::crypto::generate_random_hex_key();
+        assert!(parse_hex_key(&generated).is_ok());
     }
 
     #[test]
@@ -50,7 +65,6 @@ mod tests {
         use serde_json;
         use std::path::PathBuf;
 
-        // Create and test the FileHeader struct
         let header = FileHeader {
             protocol_version: 1,
             session_id: "00112233445566778899aabbccddeeff".to_string(),
@@ -66,7 +80,6 @@ mod tests {
         assert!(serialized.contains("1024"));
         assert!(serialized.contains("abcd1234"));
 
-        // Deserialize test
         let deserialized: FileHeader = serde_json::from_str(&serialized).unwrap();
         assert_eq!(deserialized.file_name, "test.txt");
         assert_eq!(deserialized.file_size, 1024);
@@ -75,28 +88,7 @@ mod tests {
 
     #[test]
     fn test_chunk_size_constant() {
-        // Check that the CHUNK_SIZE constant has a reasonable value
         const EXPECTED_CHUNK_SIZE: usize = 4096;
         assert_eq!(CHUNK_SIZE, EXPECTED_CHUNK_SIZE);
-    }
-
-    #[test]
-    fn test_different_file_contents_different_hashes() {
-        // Create two different files
-        let test_file1 = "tmp_rovodev_test1.txt";
-        let test_file2 = "tmp_rovodev_test2.txt";
-
-        fs::write(test_file1, "Content 1").unwrap();
-        fs::write(test_file2, "Content 2").unwrap();
-
-        let hash1 = calculate_file_hash(Path::new(test_file1)).unwrap();
-        let hash2 = calculate_file_hash(Path::new(test_file2)).unwrap();
-
-        // Different contents must produce different hashes
-        assert_ne!(hash1, hash2);
-
-        // Cleanup
-        fs::remove_file(test_file1).unwrap();
-        fs::remove_file(test_file2).unwrap();
     }
 }

@@ -1,9 +1,12 @@
 //! CLI surface regression tests.
 //!
 //! `connect` and `watch` were advertised in `--help` in earlier revisions while only printing a
-//! "still under development" notice and exiting 0. They were removed rather than left as stubs, so
-//! that every command the help lists is a command that works. These tests keep that true: if a
-//! command is ever re-advertised, it must be as a real implementation, not a placeholder.
+//! "still under development" notice and exiting 0. They were removed rather than left as stubs.
+//!
+//! These tests assert the *parser surface* only: which subcommands are accepted and which are
+//! rejected, and that `discover --timeout` refuses a zero budget. They do not prove that an
+//! accepted subcommand performs real work — that is covered by `integration_tests.rs` and the
+//! loopback harness in `scripts/demo_loopback.sh`.
 
 use clap::Parser;
 use deltasafe::cli::{Cli, Commands};
@@ -76,4 +79,15 @@ fn removed_commands_are_rejected() {
             removed[0]
         );
     }
+}
+
+#[test]
+fn discover_rejects_a_zero_timeout() {
+    // A zero budget used to be accepted and then silently raised to one second, so the run
+    // ignored the value the caller passed. It is now refused at the parser.
+    let error = parse_error(&["discover", "--timeout", "0"]);
+    assert_eq!(error.kind(), clap::error::ErrorKind::ValueValidation);
+
+    let cli = parse_ok(&["discover", "--timeout", "1"]);
+    assert!(matches!(cli.command, Commands::Discover { timeout: 1 }));
 }

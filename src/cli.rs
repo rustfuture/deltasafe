@@ -39,8 +39,13 @@ pub enum Commands {
 
     /// Discover Deltasafe servers on the LAN
     Discover {
-        /// Discovery timeout in seconds
-        #[arg(short, long, default_value = "5")]
+        /// Discovery timeout in seconds; must be at least 1
+        #[arg(
+            short,
+            long,
+            default_value = "5",
+            value_parser = clap::value_parser!(u64).range(1..)
+        )]
         timeout: u64,
     },
 

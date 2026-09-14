@@ -4,6 +4,21 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+### Fixed
+
+- `discover --timeout 0` was accepted and then silently raised to one second, so the run ignored the
+  value the caller passed. The parser now rejects zero and the scan uses the budget it is given.
+- `tests/unit_tests.rs` wrote fixed filenames into the repository root and its key-validation test
+  asserted string lengths and called `hex::decode` directly instead of the application's
+  `parse_hex_key`. The tests now use a temporary directory and exercise the real validator, including
+  the empty, short, non-hex, and round-trip cases.
+
+### Changed
+
+- `tests/cli_surface.rs` documents its scope as the parser surface. It previously implied that every
+  accepted subcommand was proven to do real work, which parser tests cannot show; integration coverage
+  and the loopback harness are where that lives.
+
 ## [0.1.0] - 2026-09-14
 
 ### Added
