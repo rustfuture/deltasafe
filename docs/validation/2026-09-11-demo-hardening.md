@@ -7,8 +7,8 @@ listed environment and scenarios, not a production security certification.
 
 - Host: macOS Apple Silicon (darwin arm64)
 - Toolchain: `rustc 1.94.1 (e408947bf 2026-03-25)` / `cargo 1.94.1 (29ea6fb6a 2026-03-24)`
-- Rust source SHA: `90d131b` (unchanged; `git diff --stat 90d131b 0d73ed1 -- src tests Cargo.toml Cargo.lock` is empty)
-- Harness revision: `scripts/demo_loopback.sh` at commit `0d73ed1`, file SHA-256
+- Rust source SHA: `b6dc775` (unchanged; `git diff --stat b6dc775 e52f9ac -- src tests Cargo.toml Cargo.lock` is empty)
+- Harness revision: `scripts/demo_loopback.sh` at commit `e52f9ac`, file SHA-256
   `054e2fb5f5d590a4ce89f6c772f7b51e73d9c7299ab04593c186bd927900c58a`
 - Built binary SHA-256: `63a8b9c45dbb1c60feb93e86fb7b3a0dcaff9f42f998c844aaa512dd1ce23c46`
   (identical to the 2026-09-10 record, confirming the Rust source did not change)

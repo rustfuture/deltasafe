@@ -1,6 +1,6 @@
 == deltasafe loopback demo ==
 repo:    <repo>
-commit:  410c306cf03ceb74167e363a41e3efd2581831f5
+commit:  b45c47c90d84ae4d0724eebe2393795a4a835ee9
 dirty:   0 path(s)
 command: cargo build --locked
     Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.05s
@@ -20,6 +20,6 @@ verified: nested/large.bin (20000 bytes, sha256 21404c5bf1a8cd7734d3b79e33356df3
 receiver inventory matches fixtures exactly
 == stopping receiver ==
 DEMO PASS
-commit:  410c306cf03ceb74167e363a41e3efd2581831f5
+commit:  b45c47c90d84ae4d0724eebe2393795a4a835ee9
 binary:  5e613612b64e70e09d5f21a7976bd7a1b6d52ac53c1266af03a7adadca522da6
 note: loopback only; wrong-password and integrity behaviors are also covered by tests/integration_tests.rs
