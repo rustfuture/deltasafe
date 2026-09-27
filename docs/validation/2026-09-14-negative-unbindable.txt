@@ -1,6 +1,6 @@
 == deltasafe loopback demo ==
 repo:    <repo>
-commit:  410c306cf03ceb74167e363a41e3efd2581831f5
+commit:  b45c47c90d84ae4d0724eebe2393795a4a835ee9
 dirty:   0 path(s)
 command: cargo build --locked
     Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.05s

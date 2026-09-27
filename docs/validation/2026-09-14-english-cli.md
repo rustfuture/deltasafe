@@ -11,7 +11,7 @@ receiver/listener logs were English. The 2026-09-11 captured receiver logs still
 startup line `Sunucu başlatılıyor: <addr>`, which no longer matches the binary. Those captures were
 replaced rather than annotated so that the committed evidence matches the committed source.
 
-The captures were first taken at revision `bd6614c`. Code changed afterwards (the `connect`/`watch`
+The captures were first taken at revision `daee0bd`. Code changed afterwards (the `connect`/`watch`
 removal, the discovery rewrite, and the audit fixes), so they were regenerated at the revision named
 below. Evidence that describes a superseded revision is not evidence for the current one.
 
@@ -19,7 +19,7 @@ below. Evidence that describes a superseded revision is not evidence for the cur
 
 - Host: macOS Apple Silicon (darwin arm64)
 - Toolchain: `rustc 1.94.1 (e408947bf 2026-03-25)` / `cargo 1.94.1 (29ea6fb6a 2026-03-24)`
-- Source revision: `410c306cf03ceb74167e363a41e3efd2581831f5` — the last commit that changed `src/`,
+- Source revision: `b45c47c90d84ae4d0724eebe2393795a4a835ee9` — the last commit that changed `src/`,
   `tests/`, or `Cargo.*`. Every later commit on this branch touches only documentation and
   changelogs, so the tested code is unchanged.
 - Built binary SHA-256: `5e613612b64e70e09d5f21a7976bd7a1b6d52ac53c1266af03a7adadca522da6`

@@ -13,7 +13,7 @@ All notable changes to this project are documented here.
 
 ### Changed
 
-- `AGENTS.md` is now `CONTRIBUTING.md`. The content was always contributor guidance — build commands,
+- The contributor guide is now `CONTRIBUTING.md`. The content was always contributor guidance — build commands,
   the review baseline, and environment notes — so it belongs under the name GitHub surfaces for that
   purpose, alongside the sibling projects.
 
@@ -31,8 +31,8 @@ All notable changes to this project are documented here.
 ### Changed
 
 - The validation evidence under `docs/validation/` was regenerated at the current source revision.
-  The earlier captures named revision `bd6614c`, which stopped describing the code once the command
-  surface and discovery changed. The evidence now records `410c306` and the binary it was produced
+  The earlier captures named revision `daee0bd`, which stopped describing the code once the command
+  surface and discovery changed. The evidence now records `b45c47c` and the binary it was produced
   from, and the sanitization also redacts the per-user temporary root.
 - `tests/cli_surface.rs` documents its scope as the parser surface. It previously implied that every
   accepted subcommand was proven to do real work, which parser tests cannot show; integration coverage
