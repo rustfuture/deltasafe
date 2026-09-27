@@ -1,4 +1,8 @@
-/target
+target/
+__pycache__/
+*.pyc
+.venv/
+.ipynb_checkpoints/
 
 # Local PRD draft, not published.
 PRD_Deltasafe.md

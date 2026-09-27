@@ -1,4 +1,4 @@
-# AGENTS.md
+# Contributing
 
 ## Project overview
 
@@ -11,8 +11,8 @@ Deltasafe is a Rust CLI tool for authenticated LAN file transfer. The current pr
 | Build | `cargo build` |
 | Test | `cargo test --locked -- --test-threads=1` |
 | Lint | `cargo clippy --locked --all-targets -- -D warnings` |
-| Run server | `cargo run -- server --address 127.0.0.1:12345 --password "test"` |
-| Run sync client | `cargo run -- sync --source ./path --target 127.0.0.1:12345 --password "test"` |
+| Run server | `cargo run -- server --address 127.0.0.1:12345 --password "testpassword123"` |
+| Run sync client | `cargo run -- sync --source ./path --target 127.0.0.1:12345 --password "testpassword123"` |
 
 ### Review baseline
 

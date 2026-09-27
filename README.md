@@ -1,81 +1,92 @@
 # deltasafe
 
+A Rust command-line tool for developers and operators who need authenticated, tamper-evident file transfer across a trusted local network.
+
 [![CI](https://github.com/rustfuture/deltasafe/actions/workflows/ci.yml/badge.svg)](https://github.com/rustfuture/deltasafe/actions/workflows/ci.yml)
-[![Rust](https://img.shields.io/badge/rust-1.85%2B-orange.svg?logo=rust)](https://www.rust-lang.org/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-`deltasafe` is a Rust command-line tool for authenticated file transfer over a trusted LAN. A sender streams regular files from a directory to a receiver; the receiver validates every encrypted frame, verifies the complete BLAKE3 digest, and publishes each file only after successful verification.
+**Status**: Experimental CLI prototype (v0.1.2). Tested on Linux and macOS; not audited for production use. Scope and security boundaries are explicit; see [CHANGELOG.md](CHANGELOG.md).
 
-This is a pre-1.0 portfolio project. The supported scope and security boundaries are intentionally explicit. See [CHANGELOG.md](CHANGELOG.md) for the change history.
+- **Encrypted streaming**: Streams regular files and nested directories over TCP using AES-256-GCM authenticated frames with per-file HKDF-derived session keys.
+- **Shared-secret authentication**: Supports shared passwords (PBKDF2 with per-transfer salt) or direct 32-byte hex keys.
+- **Staged atomic publication**: Buffers transfers in temporary files and verifies exact byte counts and BLAKE3 digests before atomic publication (no-overwrite).
+- **Filesystem boundary validation**: Rejects path traversal (`..`), absolute paths, and symlink parents to ensure all files stay within the receive root.
+- **Heuristic peer discovery**: Offers an optional, bounded TCP port-scan sweep (`--timeout`) across local addresses to find listening peers.
 
-## What is implemented
+## Quick start
 
-- AES-256-GCM authenticated encryption for every data and control frame.
-- Per-file session identifiers and HKDF-derived session keys.
-- Deterministic, direction-separated nonces derived from frame indexes.
-- Password mode with a per-transfer PBKDF2 salt, or direct 32-byte hex keys.
-- Bounded JSON headers and frame sizes.
-- Exact byte-count checks, BLAKE3 verification, and authenticated final status.
-- Temporary-file receive path; incomplete or corrupt transfers are removed and never published.
-- Relative-path validation, symlink-parent rejection, and no-overwrite publication.
-- Multi-file, nested-directory, empty-file, wrong-password, corruption, truncation, and timeout-oriented tests.
-- Best-effort LAN discovery by TCP port scan over the first 10 hosts of the local `/24` and ports 12340–12349, bounded by `--timeout`. mDNS is not implemented, and an open port is not a verified peer identity; `--target` is the deterministic path.
+### Build
 
-## Security boundaries
-
-The protocol authenticates possession of the shared password or key and protects file contents against tampering in transit. It does not provide a certificate-based device identity, TLS, forward secrecy, durable replay prevention across receiver restarts, disk-quota enforcement, or protection against a local administrator who can alter the receive directory during a transfer. Use it on a network and filesystem you control; do not expose the listener directly to the public internet.
-
-The receiver rejects paths that are absolute, contain parent/root/prefix components, escape the canonical receive root, or overwrite an existing destination. The standard-library path checks cannot eliminate every operating-system-specific TOCTOU race against a hostile local process during a transfer; that limitation is documented rather than hidden.
-
-## Requirements and build
-
-- Rust 1.85 or newer. The crate uses edition 2021; the committed `Cargo.lock` is the reproducibility source for dependency versions.
-- A local network address reachable by both peers.
+Requires Rust 1.85+ (see [Cargo.toml](Cargo.toml)):
 
 ~~~bash
-git clone https://github.com/rustfuture/deltasafe.git
-cd deltasafe
 cargo build --locked --release
 ~~~
 
-## Usage
+### Start receiver
 
-Start a receiver with a password:
+Run the receiver on a local port with a password (minimum 8 characters):
 
 ~~~bash
 cargo run --locked -- server --address 127.0.0.1:12345 --password "MySecret123"
 ~~~
 
-Send a directory to that receiver from another terminal:
+### Send files
+
+In another terminal, create a directory and synchronize it to the receiver:
 
 ~~~bash
+mkdir -p ./my_folder && echo "hello" > ./my_folder/hello.txt
 cargo run --locked -- sync \
   --source ./my_folder \
   --target 127.0.0.1:12345 \
   --password "MySecret123"
 ~~~
 
-For direct key mode, pass the same 64-character hexadecimal key to both commands:
+The receiver verifies and publishes received files under `received_files/`.
+
+### Direct key mode
+
+To authenticate using a 32-byte hex key instead of a password:
 
 ~~~bash
+# Receiver
 cargo run --locked -- server \
   --address 127.0.0.1:12345 \
   --key 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+
+# Sender
+cargo run --locked -- sync \
+  --source ./my_folder \
+  --target 127.0.0.1:12345 \
+  --key 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
 ~~~
 
-The receiver writes verified files under `received_files/` and refuses to replace an existing destination. Use `--auto`/`--auto-select` only when best-effort LAN discovery is acceptable; `--target` is the deterministic option.
-
-The command surface is `sync`, `discover`, and `server`. `connect` and `watch` were advertised in earlier revisions but were never implemented; they were removed rather than left as stubs, and they now fail as unknown subcommands. See [CHANGELOG.md](CHANGELOG.md).
+The command surface consists of `sync`, `discover`, and `server`. Legacy stubs (`connect`, `watch`) have been removed; see [CHANGELOG.md](CHANGELOG.md).
 
 ## Protocol outline
 
-For each file, the sender sends a bounded JSON header containing the protocol version, a random session ID, relative path, declared size, BLAKE3 digest, and optional password salt. The receiver validates it and returns an authenticated `READY` frame. Data frames carry a sequential index and AES-GCM ciphertext. An authenticated empty `FINISH` frame covers empty files and terminates the file. The receiver checks the exact size and digest, atomically publishes the temporary file without overwriting an existing path, and returns an authenticated `COMPLETE` or `ERROR` frame.
+For each file, the sender transmits a bounded JSON header containing the protocol version, random session ID, relative path, declared size, BLAKE3 digest, and optional PBKDF2 salt. The receiver validates the header and responds with an authenticated `READY` frame. Data frames carry a sequential index and AES-GCM ciphertext. An authenticated empty `FINISH` frame terminates the transfer. The receiver validates the byte count and BLAKE3 digest, atomically publishes the temporary file without overwriting existing files, and replies with an authenticated `COMPLETE` or `ERROR` frame.
 
-See [docs/architecture.md](docs/architecture.md) for the state machine and implementation boundaries.
+See [docs/architecture.md](docs/architecture.md) for the state machine and crypto details.
+
+## Scope and limitations
+
+<a id="security-boundaries"></a>
+
+`deltasafe` is designed for trusted local networks and controlled filesystems. It explicitly defines the following boundaries:
+
+- **Trusted LAN only**: Authenticates possession of the shared password or key, not device or certificate identities. Does not provide TLS or PKI; do not expose the listener to the public internet.
+- **No forward secrecy**: Compromise of the pre-shared secret allows decrypting previously captured traffic that used that secret.
+- **No persistent replay cache**: Replay protection is enforced within an active session, but does not persist across receiver restarts.
+- **Local filesystem TOCTOU**: Path validation prevents path traversal and symlink escapes, but standard library checks cannot eliminate OS-specific TOCTOU races against concurrent hostile local processes modifying the receive directory.
+- **Resource limits**: Framing and header sizes are bounded in memory, but disk storage quotas are not enforced.
+- **Discovery limitations**: LAN discovery is a best-effort TCP port scan over the local `/24` and ports 12340–12349, bounded by `--timeout`. An open port does not guarantee peer authenticity; `--target` is the deterministic path.
+- **Platform support**: Verified on Linux (via CI) and macOS (local); Windows is not supported.
 
 ## Verification
 
-Run the same local checks used by the portfolio review:
+Run the test suite and checks locally:
 
 ~~~bash
 cargo fmt --check
@@ -84,9 +95,11 @@ cargo clippy --locked --all-targets -- -D warnings
 cargo test --locked -- --test-threads=1
 ~~~
 
-The integration suite uses ephemeral loopback ports and temporary directories. It covers multiple nested files, empty and multi-chunk files, password salt exchange, wrong passwords, existing destinations, corrupted ciphertext, truncated frames, path traversal, and symlink-parent rejection. Passing tests are evidence for these scenarios only; they are not a general production security audit.
-
-A localhost demo harness is kept at [scripts/demo_loopback.sh](scripts/demo_loopback.sh). It proves receiver ownership before transfer, verifies byte/SHA-256 equality for every fixture, checks that a valid-length wrong password publishes no file anywhere under the receiver root, and preserves raw failure logs. The current harnessed runs and controlled startup-failure results are recorded in [docs/validation/2026-09-14-english-cli.md](docs/validation/2026-09-14-english-cli.md); the earlier hardening record is kept at [docs/validation/2026-09-11-demo-hardening.md](docs/validation/2026-09-11-demo-hardening.md).
+Committed verification artifacts in this repository:
+- **Unit and parser tests**: CLI surface parsing ([tests/cli_surface.rs](tests/cli_surface.rs)) and crypto/hash validation ([tests/unit_tests.rs](tests/unit_tests.rs)).
+- **Integration tests**: Ephemeral loopback transfers, empty files, multi-chunk transfers, wrong passwords, corrupt frames, and path safety ([tests/integration_tests.rs](tests/integration_tests.rs)).
+- **Loopback demo harness**: End-to-end verification script ([scripts/demo_loopback.sh](scripts/demo_loopback.sh)).
+- **Validation records**: Historical and recent run logs and negative test evidence ([docs/validation/2026-09-14-english-cli.md](docs/validation/2026-09-14-english-cli.md) and [docs/validation/2026-09-11-demo-hardening.md](docs/validation/2026-09-11-demo-hardening.md)).
 
 ## Project layout
 
@@ -99,26 +112,17 @@ A localhost demo harness is kept at [scripts/demo_loopback.sh](scripts/demo_loop
 
 ## Versioning and support
 
-deltasafe follows `0.x` semantics: the version number is a statement about scope, not a
-compatibility promise. While the major version is 0, a breaking change to the CLI, the wire
-protocol, or the receive-directory layout bumps the minor version, and a compatible fix bumps the
-patch version. Every change is recorded in [CHANGELOG.md](CHANGELOG.md).
+deltasafe follows `0.x` semantics: the version number represents scope rather than a long-term stability guarantee. Breaking changes bump the minor version; compatible fixes bump the patch version. Changes are recorded in [CHANGELOG.md](CHANGELOG.md).
 
 | Platform | Status |
 | --- | --- |
-| Linux | Verified by CI on Rust 1.85 (the minimum supported version) and stable. |
-| macOS | Verified locally against the committed source; not part of the CI matrix. |
+| Linux | Verified in CI on Rust 1.85 and stable. |
+| macOS | Verified locally on Apple Silicon against committed source. |
 | Windows | Not supported or verified. |
-
-The minimum supported Rust version is 1.85; raising it is a minor-version change. A `1.0` would
-mean the existing command surface, protocol version, and documented boundaries have stopped moving,
-not that every idea in the issue tracker has been implemented.
 
 ## Security
 
-Report suspected vulnerabilities privately as described in [SECURITY.md](SECURITY.md). The
-protocol's guarantees and its explicit non-goals are listed under
-[Security boundaries](#security-boundaries).
+Report suspected vulnerabilities privately as described in [SECURITY.md](SECURITY.md). Guarantees and non-goals are detailed in [Scope and limitations](#security-boundaries).
 
 ## License
 
