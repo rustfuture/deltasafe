@@ -10,7 +10,7 @@ async fn main() {
     let cli = Cli::parse();
 
     if let Err(e) = run_command(&cli.command).await {
-        eprintln!("[❌] Error: {}", e);
+        eprintln!("Error: {}", e);
         std::process::exit(1);
     }
 }
@@ -36,9 +36,9 @@ async fn run_command(command: &Commands) -> Result<()> {
         Commands::Discover { timeout } => {
             let servers = deltasafe::discovery::discover_servers(*timeout).await?;
             if servers.is_empty() {
-                println!("[ℹ️] No servers found.");
+                println!("No servers found.");
             } else {
-                println!("[✅] Discovered servers:");
+                println!("Discovered servers:");
                 for (i, server) in servers.iter().enumerate() {
                     println!("  {}. {}", i + 1, server.address);
                     if let Some(name) = &server.name {

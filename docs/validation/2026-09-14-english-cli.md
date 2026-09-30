@@ -103,3 +103,19 @@ appear in any evidence file.
 - Passing tests and this demo are evidence for the listed scenarios only. They do not claim
   certificate-based device identity, TLS, forward secrecy, durable replay protection across receiver
   restarts, or elimination of TOCTOU races against a hostile local process.
+
+## Note added 2026-09-30
+
+The counts and captured output recorded above are unchanged; this note records what differs now.
+
+- Test counts. `cargo test --locked -- --test-threads=1` on the current tree reports 15 library
+  tests, 6 CLI-surface tests, 5 integration tests, 5 helper tests, and 1 doctest (0 failed), 32
+  total. Against the 30 recorded above, one difference is a new library test,
+  `server::tests::digest_mismatch_is_rejected_without_publishing_a_file`, and the other is the
+  CLI-surface count, which was already 6 rather than 5 when this record was written: the
+  `version_matches_the_package` test was added by the v0.1.2 version change (PR #5) and this record's
+  figure was not updated.
+- Output prefixes. The user-facing messages no longer carry emoji or bracketed status prefixes. For
+  example, `[❌] Error: Could not bind receiver to ...` in this record and in the captured
+  `2026-09-14-negative-*` files is now printed as `Error: Could not bind receiver to ...`. The
+  captures were not regenerated and reflect the binary as it was on 2026-09-14.

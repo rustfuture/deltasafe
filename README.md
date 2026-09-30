@@ -5,7 +5,7 @@ deltasafe sends files between computers on the same local network and checks tha
 [![CI](https://github.com/rustfuture/deltasafe/actions/workflows/ci.yml/badge.svg)](https://github.com/rustfuture/deltasafe/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-**Status:** Experimental CLI prototype (v0.1.2); Linux/macOS tested, not production-audited.
+**Status:** Experimental CLI prototype (v0.1.2); Linux/macOS tested, not production-audited. Every automated test and recorded validation run transfers over loopback (`127.0.0.1`) on a single machine; transfers between separate computers have not been tested.
 
 - Encrypts files while sending them and checks their contents before saving.
 - Uses a shared password or key so sender and receiver can verify they know the same secret.
@@ -22,7 +22,7 @@ Build:
 cargo build --locked --release
 ~~~
 
-Start the receiver on a local port with a password (minimum 8 characters):
+Start the receiver on a local port with a password (8 to 128 bytes; the length is counted in UTF-8 bytes, so a non-ASCII character counts as more than one):
 
 ~~~bash
 cargo run --locked -- server --address 127.0.0.1:12345 --password "MySecret123"
@@ -66,7 +66,7 @@ cargo clippy --locked --all-targets -- -D warnings
 cargo test --locked -- --test-threads=1
 ~~~
 
-The tests cover command parsing, cryptography and hashes, loopback file transfers, transfer failures, and path safety.
+The tests cover command parsing, cryptography and hashes, loopback file transfers, transfer failures (including a checksum mismatch on otherwise valid frames), and path safety.
 
 ## License
 

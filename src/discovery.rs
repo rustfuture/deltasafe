@@ -34,17 +34,17 @@ pub struct DiscoveredServer {
 /// listening, not that it is a Deltasafe receiver. Results are a convenience, never a
 /// verified peer identity.
 pub async fn discover_servers(timeout_secs: u64) -> Result<Vec<DiscoveredServer>> {
-    println!("[🔍] Searching for Deltasafe servers on the LAN...");
+    println!("Searching for Deltasafe servers on the LAN...");
 
     let mut servers = Vec::new();
 
     match discover_via_port_scan(timeout_secs).await {
         Ok(mut scan_servers) => {
-            println!("[🔎] Found {} server(s) via port scan", scan_servers.len());
+            println!("Found {} server(s) via port scan", scan_servers.len());
             servers.append(&mut scan_servers);
         }
         Err(e) => {
-            println!("[⚠️] Port scan failed: {}", e);
+            println!("Warning: Port scan failed: {}", e);
         }
     }
 
@@ -52,12 +52,9 @@ pub async fn discover_servers(timeout_secs: u64) -> Result<Vec<DiscoveredServer>
     servers = deduplicate_servers(servers);
 
     if servers.is_empty() {
-        println!("[ℹ️] No servers found. Try specifying IP:port manually.");
+        println!("No servers found. Try specifying IP:port manually.");
     } else {
-        println!(
-            "[✅] Discovered {} unique server(s) in total",
-            servers.len()
-        );
+        println!("Discovered {} unique server(s) in total", servers.len());
         for (i, server) in servers.iter().enumerate() {
             println!("  {}. {}", i + 1, server.address);
         }
@@ -76,7 +73,7 @@ async fn discover_via_port_scan(timeout_secs: u64) -> Result<Vec<DiscoveredServe
     let budget = timeout_secs;
 
     println!(
-        "[🔎] Scanning up to {SCAN_HOST_LIMIT} host(s) on the local network with a {budget}s budget..."
+        "Scanning up to {SCAN_HOST_LIMIT} host(s) on the local network with a {budget}s budget..."
     );
 
     let ips: Vec<Ipv4Addr> = local_network.iter().take(SCAN_HOST_LIMIT).collect();
@@ -205,12 +202,12 @@ pub fn select_server_interactive(servers: &[DiscoveredServer]) -> Option<&Discov
     }
 
     if servers.len() == 1 {
-        println!("[✅] Found a single server: {}", servers[0].address);
+        println!("Found a single server: {}", servers[0].address);
         return Some(&servers[0]);
     }
 
     // If there are multiple servers, ask the user
-    println!("[🔍] Found {} server(s). Please choose one:", servers.len());
+    println!("Found {} server(s). Please choose one:", servers.len());
     for (i, server) in servers.iter().enumerate() {
         println!("  {}. {}", i + 1, server.address);
         if let Some(name) = &server.name {
@@ -229,17 +226,17 @@ pub fn select_server_interactive(servers: &[DiscoveredServer]) -> Option<&Discov
             Ok(_) => {
                 if let Ok(choice) = input.trim().parse::<usize>() {
                     if choice >= 1 && choice <= servers.len() {
-                        println!("[✅] Selected {}", servers[choice - 1].address);
+                        println!("Selected {}", servers[choice - 1].address);
                         return Some(&servers[choice - 1]);
                     }
                 }
                 println!(
-                    "[⚠️] Invalid choice. Enter a number between 1 and {}.",
+                    "Invalid choice. Enter a number between 1 and {}.",
                     servers.len()
                 );
             }
             Err(_) => {
-                println!("[⚠️] Input error. Please try again.");
+                println!("Input error. Please try again.");
             }
         }
     }
@@ -254,11 +251,11 @@ pub fn select_best_server_auto(servers: &[DiscoveredServer]) -> Option<&Discover
 
     if servers.len() > 1 {
         println!(
-            "[ℹ️] Found {} server(s); automatically selected {}",
+            "Found {} server(s); automatically selected {}",
             servers.len(),
             selected.address
         );
-        println!("[💡] Use the 'deltasafe discover' command to see all servers");
+        println!("Tip: Use the 'deltasafe discover' command to see all servers");
     }
 
     Some(selected)

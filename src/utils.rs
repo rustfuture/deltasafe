@@ -50,8 +50,8 @@ pub fn resolve_key(
         }
         (None, None) => {
             let temp_key = generate_random_hex_key();
-            println!("🔑 Generated temporary key: {}", temp_key);
-            println!("💡 Share this key with the other side or use --password");
+            println!("Generated temporary key: {}", temp_key);
+            println!("Tip: Share this key with the other side or use --password");
             Ok(ResolvedKey {
                 key: parse_hex_key(&temp_key)?,
                 pbkdf2_salt: None,
@@ -72,7 +72,7 @@ pub async fn resolve_target_address(
     match (target, auto_discover) {
         (Some(addr), false) => Ok(addr.to_string()),
         (None, true) => {
-            println!("[🔍] Starting automatic server discovery...");
+            println!("Starting automatic server discovery...");
             let servers = discover_servers(5).await?;
 
             if servers.is_empty() {
@@ -87,7 +87,7 @@ pub async fn resolve_target_address(
                 select_server_interactive(&servers).context("Server selection was cancelled")?
             };
 
-            println!("[✅] Selected server: {}", selected_server.address);
+            println!("Selected server: {}", selected_server.address);
             Ok(selected_server.address.to_string())
         }
         (None, false) => {
@@ -109,7 +109,7 @@ pub fn resolve_server_address(address: Option<&str>) -> Result<String> {
             let local_ip = get_local_ip()?;
             let default_port = 12345;
             let server_address = format!("{}:{}", local_ip, default_port);
-            println!("🌐 Automatic address: {}", server_address);
+            println!("Automatic address: {}", server_address);
             Ok(server_address)
         }
     }

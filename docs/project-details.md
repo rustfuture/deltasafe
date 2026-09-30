@@ -35,6 +35,7 @@ See [docs/architecture.md](architecture.md) for the state machine and crypto det
 - **Local filesystem TOCTOU**: Path validation prevents path traversal and symlink escapes, but standard library checks cannot eliminate OS-specific TOCTOU races against concurrent hostile local processes modifying the receive directory.
 - **Resource limits**: Framing and header sizes are bounded in memory, but disk storage quotas are not enforced.
 - **Discovery limitations**: LAN discovery is a best-effort TCP port scan over the local `/24` and ports 12340–12349, bounded by `--timeout`. An open port does not guarantee peer authenticity; `--target` is the deterministic path.
+- **Loopback evidence only**: All tests and recorded validation runs use loopback on one machine. Transfers between separate computers, and behaviour on real network conditions, have not been tested.
 - **Platform support**: Verified on Linux (via CI) and macOS (local); Windows is not supported.
 
 ## Verification artifacts
@@ -42,7 +43,7 @@ See [docs/architecture.md](architecture.md) for the state machine and crypto det
 Committed verification artifacts in this repository:
 
 - **Unit and parser tests**: CLI surface parsing ([tests/cli_surface.rs](../tests/cli_surface.rs)) and crypto/hash validation ([tests/unit_tests.rs](../tests/unit_tests.rs)).
-- **Integration tests**: Ephemeral loopback transfers, empty files, multi-chunk transfers, wrong passwords, corrupt frames, and path safety ([tests/integration_tests.rs](../tests/integration_tests.rs)).
+- **Integration tests**: Ephemeral loopback transfers, empty files, multi-chunk transfers, wrong passwords, and path safety ([tests/integration_tests.rs](../tests/integration_tests.rs)). Corrupt frames, truncated frames, and a BLAKE3 digest mismatch on otherwise valid frames are covered by unit tests in [src/server.rs](../src/server.rs).
 - **Loopback demo harness**: End-to-end verification script ([scripts/demo_loopback.sh](../scripts/demo_loopback.sh)).
 - **Validation records**: Historical and recent run logs and negative test evidence ([docs/validation/2026-09-14-english-cli.md](validation/2026-09-14-english-cli.md) and [docs/validation/2026-09-11-demo-hardening.md](validation/2026-09-11-demo-hardening.md)).
 
