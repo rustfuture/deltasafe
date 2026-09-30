@@ -4,6 +4,17 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+### Added
+
+- A receiver test for a BLAKE3 digest mismatch: every frame is valid and authenticated but the header's
+  declared digest is wrong. The receiver rejects the file and leaves nothing under the receive root.
+
+### Changed
+
+- User-facing messages no longer use emoji or bracketed status prefixes.
+- The README states the password limit as the code enforces it (8 to 128 bytes) and that all recorded
+  evidence is loopback on a single machine.
+
 ## [0.1.2] - 2026-09-14
 
 ### Fixed

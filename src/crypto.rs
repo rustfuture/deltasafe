@@ -6,13 +6,14 @@ use anyhow::{Context, Result};
 use pbkdf2::pbkdf2_hmac;
 use sha2::Sha256;
 
-/// PBKDF2 iteration count (sufficient for security)
+/// PBKDF2-HMAC-SHA256 iteration count. This is a fixed constant of 100,000 and is not configurable.
 const PBKDF2_ITERATIONS: u32 = 100_000;
 
 /// Salt length (128 bits)
 const SALT_LENGTH: usize = 16;
 
-/// Default salt (should be random in production; fixed for now)
+/// Fixed default salt, used when no salt is supplied. It is the same for every password and every
+/// run; the sender in password mode generates a random salt instead (see `generate_random_salt`).
 const DEFAULT_SALT: &[u8] = b"deltasafe_salt16";
 
 /// Derives an AES-256 key from a password
@@ -68,7 +69,7 @@ pub fn validate_password_strength(password: &str) -> Result<()> {
     let has_digit = password.chars().any(|c| c.is_numeric());
 
     if !has_letter || !has_digit {
-        println!("⚠️  Security tip: Use both letters and digits in your password");
+        println!("Security tip: Use both letters and digits in your password");
     }
 
     Ok(())

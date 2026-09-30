@@ -440,6 +440,60 @@ mod tests {
     }
 
     #[test]
+    fn digest_mismatch_is_rejected_without_publishing_a_file() {
+        let sandbox = tempfile::tempdir().unwrap();
+        let receive_root = sandbox.path().join("received");
+        let thread_root = receive_root.clone();
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let server =
+            std::thread::spawn(move || serve_once(listener, &[7u8; 32], None, &thread_root));
+        let mut stream = TcpStream::connect(address).unwrap();
+        configure_stream(&stream).unwrap();
+
+        // Every frame below is correctly encrypted and authenticated, and the size matches. Only
+        // the declared BLAKE3 digest (a well-formed 32-byte value) is for different content.
+        let data = b"hello";
+        let (mut header, _, session_key) = test_header(data);
+        let wrong_digest = blake3::hash(b"different content").to_hex().to_string();
+        assert_ne!(header.file_hash, wrong_digest);
+        header.file_hash = wrong_digest;
+        let header_bytes = serde_json::to_vec(&header).unwrap();
+
+        write_header(&mut stream, &header_bytes).unwrap();
+        assert_status(&mut stream, &header_bytes, &session_key, 0, KIND_READY);
+        let data_frame = encrypt_frame(
+            &header_bytes,
+            &session_key,
+            CLIENT_DIRECTION,
+            KIND_DATA,
+            0,
+            data,
+        )
+        .unwrap();
+        write_frame(&mut stream, &data_frame).unwrap();
+        let finish_frame = encrypt_frame(
+            &header_bytes,
+            &session_key,
+            CLIENT_DIRECTION,
+            KIND_FINISH,
+            1,
+            &[],
+        )
+        .unwrap();
+        write_frame(&mut stream, &finish_frame).unwrap();
+
+        assert_status(&mut stream, &header_bytes, &session_key, 1, KIND_ERROR);
+        let error = server.join().unwrap().unwrap_err();
+        assert!(
+            format!("{error:#}").contains("does not match the declared digest"),
+            "unexpected error: {error:#}"
+        );
+        assert!(!receive_root.join("payload.bin").exists());
+        assert_eq!(fs::read_dir(&receive_root).unwrap().count(), 0);
+    }
+
+    #[test]
     fn truncated_frame_is_rejected_without_leaving_a_temp_file() {
         let sandbox = tempfile::tempdir().unwrap();
         let receive_root = sandbox.path().join("received");
