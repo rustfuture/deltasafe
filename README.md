@@ -10,6 +10,8 @@ deltasafe sends files between computers on the same local network and checks tha
 > [!NOTE]
 > **Status:** Experimental CLI prototype (v0.1.2); Linux/macOS tested, not production-audited. Every automated test and recorded validation run transfers over loopback (`127.0.0.1`) on a single machine; transfers between separate computers have not been tested.
 
+![Local file transfer demonstration](docs/demo/transfer.gif)
+
 - Encrypts files while sending them and checks their contents before saving.
 - Uses a shared password or key so sender and receiver can verify they know the same secret.
 - Saves received files only after checking them, and does not overwrite existing files.
@@ -54,6 +56,19 @@ The receiver saves files under `received_files/`; compare `received_files/hello.
 - The receiver writes to a temporary file, checks the final size and checksum, then publishes it if the destination does not already exist.
 
 See [the protocol outline and architecture notes](docs/project-details.md#protocol-outline) and [docs/architecture.md](docs/architecture.md) for more detail.
+
+```mermaid
+sequenceDiagram
+    participant Sender
+    participant Receiver
+    Sender->>Receiver: TCP connection
+    Sender->>Receiver: File header
+    Receiver-->>Sender: Authenticated READY
+    Sender->>Receiver: Encrypted data chunks
+    Sender->>Receiver: Encrypted FINISH frame
+    Receiver->>Receiver: Verify BLAKE3 checksum
+    Receiver-->>Sender: Authenticated COMPLETE
+```
 
 ## Scope and limitations
 
