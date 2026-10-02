@@ -1,5 +1,7 @@
 # deltasafe
 
+![deltasafe project overview](docs/images/social-preview.png)
+
 deltasafe sends files between computers on the same local network and checks that each file arrived unchanged.
 
 [![CI](https://github.com/rustfuture/deltasafe/actions/workflows/ci.yml/badge.svg)](https://github.com/rustfuture/deltasafe/actions/workflows/ci.yml)
