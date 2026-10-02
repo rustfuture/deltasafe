@@ -7,7 +7,8 @@ deltasafe sends files between computers on the same local network and checks tha
 [![CI](https://github.com/rustfuture/deltasafe/actions/workflows/ci.yml/badge.svg)](https://github.com/rustfuture/deltasafe/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-**Status:** Experimental CLI prototype (v0.1.2); Linux/macOS tested, not production-audited. Every automated test and recorded validation run transfers over loopback (`127.0.0.1`) on a single machine; transfers between separate computers have not been tested.
+> [!NOTE]
+> **Status:** Experimental CLI prototype (v0.1.2); Linux/macOS tested, not production-audited. Every automated test and recorded validation run transfers over loopback (`127.0.0.1`) on a single machine; transfers between separate computers have not been tested.
 
 - Encrypts files while sending them and checks their contents before saving.
 - Uses a shared password or key so sender and receiver can verify they know the same secret.
