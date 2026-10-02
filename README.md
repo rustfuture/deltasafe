@@ -14,12 +14,15 @@ deltasafe sends files between computers on the same local network and checks tha
 
 ## Quick start
 
-Requires Rust 1.85+ (see [Cargo.toml](Cargo.toml)).
+You need Git and Rust 1.85+ with Cargo ([rustup](https://rustup.rs/); version in [Cargo.toml](Cargo.toml)). The first build downloads dependencies. The example below transfers a small file between two terminals on the same machine; no second computer or network discovery is needed.
 
-Build:
+Build once from the cloned repository:
 
 ~~~bash
-cargo build --locked --release
+git clone https://github.com/rustfuture/deltasafe.git
+cd deltasafe
+
+cargo build --locked
 ~~~
 
 Start the receiver on a local port with a password (8 to 128 bytes; the length is counted in UTF-8 bytes, so a non-ASCII character counts as more than one):
@@ -28,7 +31,7 @@ Start the receiver on a local port with a password (8 to 128 bytes; the length i
 cargo run --locked -- server --address 127.0.0.1:12345 --password "MySecret123"
 ~~~
 
-In another terminal, create a directory and send it to the receiver:
+Keep that receiver running. In another terminal, `cd` to the same cloned `deltasafe` directory, create a directory and send it to the receiver:
 
 ~~~bash
 mkdir -p ./my_folder && echo "hello" > ./my_folder/hello.txt
@@ -38,7 +41,7 @@ cargo run --locked -- sync \
   --password "MySecret123"
 ~~~
 
-The receiver saves files under `received_files/`. For direct key mode and other options, see [the project details](docs/project-details.md).
+The receiver saves files under `received_files/`; compare `received_files/hello.txt` with `my_folder/hello.txt` to check this example. Stop the receiver with Ctrl+C. If the port is already in use, choose another port in both commands. Use a new source filename when repeating: existing destination files are not overwritten. For direct key mode and other options, see [the project details](docs/project-details.md).
 
 ## How it works
 
