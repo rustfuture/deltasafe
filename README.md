@@ -8,7 +8,7 @@ deltasafe sends files between computers on the same local network and checks tha
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 > [!NOTE]
-> **Status:** Experimental CLI prototype (v0.1.2); Linux/macOS tested, not production-audited. Every automated test and recorded validation run transfers over loopback (`127.0.0.1`) on a single machine; transfers between separate computers have not been tested.
+> **Status:** Experimental CLI prototype (v0.1.3); Linux/macOS tested, not production-audited. Every automated test and recorded validation run transfers over loopback (`127.0.0.1`) on a single machine; transfers between separate computers have not been tested.
 
 ![Local file transfer demonstration](docs/demo/transfer.gif)
 
@@ -18,6 +18,21 @@ deltasafe sends files between computers on the same local network and checks tha
 - Can scan local network ports to look for receivers.
 
 ## Quick start
+
+### Try the released CLI (macOS or Linux)
+
+The prebuilt CLI does not require Rust. The installer downloads a release, checks its SHA-256 checksum, and installs to `~/.local/bin`:
+
+~~~bash
+curl -fsSL https://raw.githubusercontent.com/rustfuture/deltasafe/main/install.sh | sh
+export PATH="$HOME/.local/bin:$PATH"
+deltasafe --version
+deltasafe --help
+~~~
+
+Prebuilt Linux binaries require glibc; unsupported platforms can build from source. On Windows, use the [PowerShell installer](install.ps1).
+
+### Build from source
 
 You need Git and Rust 1.85+ with Cargo ([rustup](https://rustup.rs/); version in [Cargo.toml](Cargo.toml)). The first build downloads dependencies. The example below transfers a small file between two terminals on the same machine; no second computer or network discovery is needed.
 
