@@ -4,8 +4,11 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-10-05
+
 ### Added
 
+- Prebuilt binaries for Linux (x86_64, aarch64), macOS (Intel, Apple Silicon) and Windows on each release, with SHA-256 files, plus `install.sh` and `install.ps1` installers.
 - A receiver test for a BLAKE3 digest mismatch: every frame is valid and authenticated but the header's
   declared digest is wrong. The receiver rejects the file and leaves nothing under the receive root.
 
